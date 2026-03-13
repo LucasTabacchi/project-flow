@@ -1,36 +1,154 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ProjectFlow
 
-## Getting Started
+App web de gestion de proyectos tipo Trello, construida con `Next.js 16`, `React 19`, `TypeScript`, `Tailwind CSS`, `Prisma`, `Supabase Postgres`, `Zustand` y `dnd-kit`.
 
-First, run the development server:
+## Incluye
+
+- Autenticacion segura con email y contrasena, sesiones HTTP-only y perfil de usuario
+- Dashboard con resumen de tableros, proximas entregas e invitaciones pendientes
+- Tableros con listas y tarjetas movibles por drag and drop
+- Detalle de tarjeta con descripcion, prioridad, estado, fecha, checklist, comentarios y adjuntos por URL
+- Miembros por tablero con roles `OWNER`, `EDITOR` y `VIEWER`
+- Busqueda global con filtros
+- Vista calendario de vencimientos
+- Modo oscuro
+- Seed de datos demo
+
+## Stack
+
+- Frontend: `Next.js App Router` + `React` + `TypeScript`
+- Estilos: `Tailwind CSS v4`
+- UI base: componentes reutilizables inspirados en `shadcn/ui`
+- Backend: `Server Actions`
+- Base de datos: `Supabase Postgres`
+- ORM: `Prisma`
+- Estado cliente: `Zustand`
+- Drag and drop: `dnd-kit`
+- Deploy objetivo: `Vercel`
+
+## Configuracion con Supabase
+
+### 1. Crear el proyecto
+
+Creá un proyecto en Supabase y anotá:
+
+- `PROJECT-REF`
+- `REGION`
+- la contraseña del usuario que vayas a usar con Prisma
+
+### 2. Crear un usuario dedicado para Prisma
+
+Recomendado para produccion. En el SQL Editor de Supabase ejecutá:
+
+[`supabase/setup-prisma-role.sql`](C:\Users\lucas\Desktop\projectflow\supabase\setup-prisma-role.sql)
+
+Después reemplazá `'replace_with_a_strong_password'` por una contraseña real y usá ese usuario en las URLs de conexion.
+
+### 3. Variables de entorno
+
+Creá `.env.local` a partir de `.env.example`.
+
+```env
+# Runtime en Vercel / serverless:
+# Supavisor transaction pooler (puerto 6543) + pgbouncer=true
+DATABASE_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:6543/postgres?pgbouncer=true"
+
+# Prisma CLI / db push / migrations:
+# Supavisor session pooler (puerto 5432)
+DIRECT_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres"
+
+SESSION_COOKIE_NAME="projectflow_session"
+```
+
+### 4. Sincronizar el schema
+
+```bash
+npx prisma generate
+npm run db:push
+```
+
+### 5. Cargar datos demo
+
+```bash
+npm run db:seed
+```
+
+### 6. Levantar la app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Usuarios demo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `sofia@projectflow.dev` / `Demo1234!`
+- `diego@projectflow.dev` / `Demo1234!`
+- `lucia@projectflow.dev` / `Demo1234!`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts utiles
 
-## Learn More
+- `npm run dev`: desarrollo local
+- `npm run build`: build de produccion
+- `npm run start`: servir build local
+- `npm run lint`: chequeo ESLint
+- `npm run typecheck`: chequeo TypeScript
+- `npm run db:push`: sincronizar schema Prisma con Supabase
+- `npm run db:migrate`: migraciones Prisma en local
+- `npm run db:seed`: cargar seed demo
+- `npm run db:studio`: abrir Prisma Studio
 
-To learn more about Next.js, take a look at the following resources:
+## Estructura
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+src/
+  app/
+    (auth)/login, register
+    (app)/dashboard, boards/[boardId], search, calendar, profile
+    actions/
+  components/
+    auth/
+    boards/
+    calendar/
+    dashboard/
+    layout/
+    profile/
+    search/
+    ui/
+  lib/
+    auth/
+    data/
+    validators/
+  stores/
+prisma/
+  schema.prisma
+  seed.ts
+supabase/
+  setup-prisma-role.sql
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notas tecnicas
 
-## Deploy on Vercel
+- Prisma usa `DATABASE_URL` para el runtime y `DIRECT_URL` para operaciones CLI que requieren una conexion dedicada.
+- El datasource ya esta configurado con `directUrl` en [`prisma/schema.prisma`](C:\Users\lucas\Desktop\projectflow\prisma\schema.prisma).
+- El acceso a tableros siempre se valida del lado del servidor.
+- Las mutaciones usan `Zod` y revalidan rutas afectadas.
+- El board usa una frontera cliente acotada para `dnd-kit`; el resto de paginas se apoya en Server Components.
+- Los adjuntos se modelan como links externos para mantener la app lista sin depender de storage externo.
+- Si vas a usar solo Prisma y no el Data API de Supabase, podés desactivarlo desde Settings si querés simplificar la superficie expuesta.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy en Vercel
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Definí estas variables en Vercel:
+
+- `DATABASE_URL`
+- `DIRECT_URL`
+- `SESSION_COOKIE_NAME`
+
+Luego hacé deploy normal. El build ya fue validado con `next build`.
+
+## Verificacion realizada
+
+- `npx prisma generate`
+- `npx tsc --noEmit`
+- `npm run lint`
+- `npm run build`

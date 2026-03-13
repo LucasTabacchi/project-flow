@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    optimizePackageImports: ["date-fns", "lucide-react"],
+  },
+  turbopack: {
+    root: __dirname,
+  },
 };
 
 export default nextConfig;
