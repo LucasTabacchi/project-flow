@@ -63,6 +63,7 @@ model User {
   sentInvitations         BoardInvitation[] @relation("BoardInvitationInvitedBy")
   receivedInvitations     BoardInvitation[] @relation("BoardInvitationInvitee")
   attachments             Attachment[]      @relation("AttachmentUploader")
+  boardPresences          BoardPresence[]
 }
 
 model Session {
@@ -93,6 +94,7 @@ model Board {
   lists           List[]
   cards           Card[]
   labels          Label[]
+  presences       BoardPresence[]
 
   @@index([ownerId])
   @@index([updatedAt])
@@ -168,10 +170,29 @@ model Card {
   cardLabels  CardLabel[]
   assignments CardAssignment[]
   attachments Attachment[]
+  presences   BoardPresence[]
 
   @@index([boardId, dueDate])
   @@index([boardId, status])
   @@index([listId, position])
+}
+
+model BoardPresence {
+  id           String   @id @default(cuid())
+  boardId      String
+  userId       String
+  clientId     String
+  activeCardId String?
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  board        Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeCard   Card?    @relation(fields: [activeCardId], references: [id], onDelete: SetNull)
+
+  @@unique([boardId, userId, clientId])
+  @@index([boardId, lastSeenAt])
+  @@index([activeCardId, lastSeenAt])
 }
 
 model CardComment {

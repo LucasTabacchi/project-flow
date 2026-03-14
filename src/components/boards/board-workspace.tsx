@@ -22,6 +22,7 @@ import { AddListForm } from "@/components/boards/add-list-form";
 import { BoardColumn } from "@/components/boards/board-column";
 import { BoardFilters } from "@/components/boards/board-filters";
 import { BoardHeader } from "@/components/boards/board-header";
+import { BoardRealtimeSync } from "@/components/boards/board-realtime-sync";
 import { CardDetailDialog } from "@/components/boards/card-detail-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +146,21 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
   );
 
   const currentBoard = boardState ?? board;
+  const selectedCardUpdatedAt = useMemo(() => {
+    if (!selectedCardId) {
+      return null;
+    }
+
+    for (const list of currentBoard.lists) {
+      const card = list.cards.find((item) => item.id === selectedCardId);
+
+      if (card) {
+        return card.updatedAt;
+      }
+    }
+
+    return null;
+  }, [currentBoard.lists, selectedCardId]);
   const isFilteredView =
     Boolean(deferredQuery.trim()) ||
     filters.labelId !== "ALL" ||
@@ -293,6 +309,12 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
   return (
     <div className="space-y-6">
       <BoardHeader board={currentBoard} />
+      <BoardRealtimeSync
+        boardId={currentBoard.id}
+        updatedAt={currentBoard.updatedAt}
+        activeCardId={selectedCardId}
+        pauseSync={Boolean(activeCard || activeList || isPending)}
+      />
       <BoardFilters board={currentBoard} />
 
       {isFilteredView ? (
@@ -360,6 +382,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       <CardDetailDialog
         boardId={currentBoard.id}
         cardId={selectedCardId}
+        cardUpdatedAt={selectedCardUpdatedAt}
         open={Boolean(selectedCardId)}
         onOpenChange={(open) => {
           if (!open) {
@@ -367,6 +390,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
           }
         }}
         members={currentBoard.members}
+        presence={currentBoard.presence}
         labels={currentBoard.labels}
         canEdit={currentBoard.permissions.canEdit}
       />

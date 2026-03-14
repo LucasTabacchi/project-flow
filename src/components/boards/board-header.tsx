@@ -51,6 +51,8 @@ export function BoardHeader({ board }: BoardHeaderProps) {
   const [labelColor, setLabelColor] = useState("SKY");
   const [isPending, startTransition] = useTransition();
   const themeConfig = getBoardTheme(board.theme);
+  const onlineUsers = board.presence;
+  const onlineUserIds = new Set(onlineUsers.map((entry) => entry.userId));
 
   function handleBoardSave() {
     startTransition(async () => {
@@ -170,22 +172,63 @@ export function BoardHeader({ board }: BoardHeaderProps) {
             </div>
 
             <div className="rounded-[24px] border border-border bg-background/70 p-4">
-              <p className="text-sm font-semibold">Equipo</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Equipo</p>
+                  <p className="text-xs text-muted-foreground">
+                    {onlineUsers.length
+                      ? `${onlineUsers.length} online ahora`
+                      : "Sin miembros online en este momento"}
+                  </p>
+                </div>
+                {onlineUsers.length ? (
+                  <div className="flex -space-x-2">
+                    {onlineUsers.slice(0, 4).map((member) => (
+                      <div
+                        key={member.userId}
+                        className="rounded-full border-2 border-background shadow-sm"
+                        title={member.name}
+                      >
+                        <UserAvatar
+                          name={member.name}
+                          src={member.avatarUrl}
+                          className="size-9"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {board.members.map((member) => (
                   <div
                     key={member.userId}
-                    className="flex items-center gap-2 rounded-2xl bg-card/80 px-3 py-2"
+                    className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${
+                      onlineUserIds.has(member.userId)
+                        ? "bg-emerald-500/10 ring-1 ring-emerald-500/30"
+                        : "bg-card/80"
+                    }`}
                   >
-                    <UserAvatar
-                      name={member.name}
-                      src={member.avatarUrl}
-                      className="size-8"
-                    />
+                    <div className="relative">
+                      <UserAvatar
+                        name={member.name}
+                        src={member.avatarUrl}
+                        className="size-8"
+                      />
+                      <span
+                        className={`absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-background ${
+                          onlineUserIds.has(member.userId)
+                            ? "bg-emerald-500"
+                            : "bg-muted"
+                        }`}
+                      />
+                    </div>
                     <div className="text-sm">
                       <p className="font-medium">{member.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {getRoleLabel(member.role)}
+                        {onlineUserIds.has(member.userId)
+                          ? `Online · ${getRoleLabel(member.role)}`
+                          : getRoleLabel(member.role)}
                       </p>
                     </div>
                   </div>

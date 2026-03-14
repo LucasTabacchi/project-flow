@@ -1,3 +1,4 @@
+import { getBoardPresence } from "@/lib/board-realtime";
 import { prisma } from "@/lib/db";
 import {
   canDeleteBoard,
@@ -176,87 +177,89 @@ export async function getBoardPageData(
   boardId: string,
   userId: string,
 ): Promise<BoardPageData | null> {
-  const membership = await prisma.boardMember.findUnique({
-    where: {
-      boardId_userId: {
-        boardId,
-        userId,
+  const [membership, presence] = await Promise.all([
+    prisma.boardMember.findUnique({
+      where: {
+        boardId_userId: {
+          boardId,
+          userId,
+        },
       },
-    },
-    select: {
-      role: true,
-      board: {
-        include: {
-          labels: {
-            orderBy: {
-              name: "asc",
-            },
-          },
-          members: {
-            orderBy: {
-              createdAt: "asc",
-            },
-            include: {
-              user: {
-                select: userSummarySelect,
+      select: {
+        role: true,
+        board: {
+          include: {
+            labels: {
+              orderBy: {
+                name: "asc",
               },
             },
-          },
-          invitations: {
-            where: {
-              status: "PENDING",
-              expiresAt: {
-                gt: new Date(),
+            members: {
+              orderBy: {
+                createdAt: "asc",
               },
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-            include: {
-              invitedBy: {
-                select: {
-                  name: true,
+              include: {
+                user: {
+                  select: userSummarySelect,
                 },
               },
             },
-          },
-          lists: {
-            orderBy: {
-              position: "asc",
-            },
-            include: {
-              cards: {
-                orderBy: {
-                  position: "asc",
+            invitations: {
+              where: {
+                status: "PENDING",
+                expiresAt: {
+                  gt: new Date(),
                 },
-                include: {
-                  assignments: {
-                    include: {
-                      user: {
-                        select: userSummarySelect,
+              },
+              orderBy: {
+                createdAt: "desc",
+              },
+              include: {
+                invitedBy: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+            lists: {
+              orderBy: {
+                position: "asc",
+              },
+              include: {
+                cards: {
+                  orderBy: {
+                    position: "asc",
+                  },
+                  include: {
+                    assignments: {
+                      include: {
+                        user: {
+                          select: userSummarySelect,
+                        },
                       },
                     },
-                  },
-                  cardLabels: {
-                    include: {
-                      label: true,
+                    cardLabels: {
+                      include: {
+                        label: true,
+                      },
                     },
-                  },
-                  comments: {
-                    select: {
-                      id: true,
+                    comments: {
+                      select: {
+                        id: true,
+                      },
                     },
-                  },
-                  attachments: {
-                    select: {
-                      id: true,
+                    attachments: {
+                      select: {
+                        id: true,
+                      },
                     },
-                  },
-                  checklists: {
-                    include: {
-                      items: {
-                        select: {
-                          isCompleted: true,
+                    checklists: {
+                      include: {
+                        items: {
+                          select: {
+                            isCompleted: true,
+                          },
                         },
                       },
                     },
@@ -267,8 +270,9 @@ export async function getBoardPageData(
           },
         },
       },
-    },
-  });
+    }),
+    getBoardPresence(boardId),
+  ]);
 
   if (!membership?.board) {
     return null;
@@ -306,6 +310,7 @@ export async function getBoardPageData(
       color: label.color,
     })),
     members,
+    presence,
     invitations: board.invitations.map((invitation) => ({
       id: invitation.id,
       email: invitation.email,

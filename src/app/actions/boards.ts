@@ -11,6 +11,7 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { requireUser } from "@/lib/auth/session";
+import { touchBoard } from "@/lib/board-realtime";
 import { prisma } from "@/lib/db";
 import { buildInvitationUrl, sendBoardInvitationEmail } from "@/lib/email";
 import { canEditBoard, canManageMembers } from "@/lib/permissions";
@@ -325,6 +326,7 @@ export async function createListAction(
     },
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success({ listId: list.id }, "Lista creada.");
@@ -357,6 +359,7 @@ export async function updateListAction(input: unknown): Promise<ActionResult> {
     },
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Lista actualizada.");
@@ -386,6 +389,7 @@ export async function deleteListAction(input: unknown): Promise<ActionResult> {
     },
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Lista eliminada.");
@@ -422,6 +426,7 @@ export async function reorderListsAction(input: unknown): Promise<ActionResult> 
     ),
   );
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Orden actualizado.");
@@ -460,6 +465,7 @@ export async function createLabelAction(input: unknown): Promise<ActionResult> {
     data: parsed.data,
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Etiqueta creada.");
@@ -584,6 +590,7 @@ export async function inviteMemberAction(
       role: parsed.data.role as "EDITOR" | "VIEWER",
     });
 
+    await touchBoard(parsed.data.boardId);
     revalidateInvitationPaths(parsed.data.boardId, invitation.token);
 
     if (!emailResult.sent) {
@@ -638,6 +645,7 @@ export async function acceptInvitationAction(
     }
 
     await acceptInvitationRecord(invitation, user);
+    await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
@@ -676,6 +684,7 @@ export async function declineInvitationAction(
     }
 
     await declineInvitationRecord(invitation, user.id);
+    await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
 
     return success(undefined, "Invitación rechazada.");
@@ -714,6 +723,7 @@ export async function acceptInvitationByTokenAction(
     }
 
     await acceptInvitationRecord(invitation, user);
+    await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
@@ -752,6 +762,7 @@ export async function declineInvitationByTokenAction(
     }
 
     await declineInvitationRecord(invitation, user.id);
+    await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
 
     return success(undefined, "Invitación rechazada.");

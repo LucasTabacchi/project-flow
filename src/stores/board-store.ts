@@ -4,6 +4,7 @@ import { create } from "zustand";
 
 import type {
   BoardListView,
+  BoardPresenceView,
   BoardPageData,
   CardPriority,
   CardStatus,
@@ -24,6 +25,7 @@ type BoardStore = {
   selectedCardId: string | null;
   hydrateBoard: (board: BoardPageData) => void;
   setLists: (lists: BoardListView[]) => void;
+  setPresence: (presence: BoardPresenceView[]) => void;
   setFilters: (filters: Partial<BoardFilters>) => void;
   openCard: (cardId: string) => void;
   closeCard: () => void;
@@ -59,6 +61,15 @@ export const useBoardStore = create<BoardStore>((set) => ({
         ? {
             ...state.board,
             lists,
+          }
+        : null,
+    })),
+  setPresence: (presence) =>
+    set((state) => ({
+      board: state.board
+        ? {
+            ...state.board,
+            presence,
           }
         : null,
     })),

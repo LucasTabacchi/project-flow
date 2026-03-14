@@ -21,6 +21,11 @@ export type BoardMemberView = UserSummary & {
   role: BoardRole;
 };
 
+export type BoardPresenceView = UserSummary & {
+  activeCardId: string | null;
+  sessionCount: number;
+};
+
 export type LabelView = {
   id: string;
   name: string;
@@ -90,6 +95,7 @@ export type BoardPageData = {
   permissions: BoardPermissions;
   labels: LabelView[];
   members: BoardMemberView[];
+  presence: BoardPresenceView[];
   invitations: BoardInvitationView[];
   stats: BoardStats;
   lists: BoardListView[];

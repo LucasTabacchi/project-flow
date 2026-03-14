@@ -9,6 +9,7 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { requireUser } from "@/lib/auth/session";
+import { touchBoard, touchCard } from "@/lib/board-realtime";
 import { getBoardMembership, getCardDetail } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
@@ -88,6 +89,7 @@ export async function createCardAction(
     },
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success({ cardId: card.id }, "Tarjeta creada.");
@@ -142,6 +144,7 @@ export async function updateCardAction(input: unknown): Promise<ActionResult> {
     },
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Tarjeta actualizada.");
@@ -171,6 +174,7 @@ export async function deleteCardAction(input: unknown): Promise<ActionResult> {
     },
   });
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Tarjeta eliminada.");
@@ -210,6 +214,7 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
 
   await prisma.$transaction(updates);
 
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Tarjetas reordenadas.");
@@ -237,6 +242,8 @@ export async function addCommentAction(input: unknown): Promise<ActionResult> {
     },
   });
 
+  await touchCard(parsed.data.cardId);
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Comentario agregado.");
@@ -274,6 +281,8 @@ export async function addChecklistAction(input: unknown): Promise<ActionResult> 
     },
   });
 
+  await touchCard(parsed.data.cardId);
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Checklist agregado.");
@@ -305,6 +314,19 @@ export async function addChecklistItemAction(
     },
   });
 
+  const checklist = await prisma.cardChecklist.findUnique({
+    where: {
+      id: parsed.data.checklistId,
+    },
+    select: {
+      cardId: true,
+    },
+  });
+
+  if (!checklist) {
+    return failure("No encontramos el checklist indicado.");
+  }
+
   await prisma.checklistItem.create({
     data: {
       checklistId: parsed.data.checklistId,
@@ -313,6 +335,8 @@ export async function addChecklistItemAction(
     },
   });
 
+  await touchCard(checklist.cardId);
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Item agregado.");
@@ -338,7 +362,7 @@ export async function toggleChecklistItemAction(
     return failure("Tu rol no puede editar checklists.");
   }
 
-  await prisma.checklistItem.update({
+  const item = await prisma.checklistItem.update({
     where: {
       id: parsed.data.itemId,
     },
@@ -347,8 +371,17 @@ export async function toggleChecklistItemAction(
       completedAt: parsed.data.isCompleted ? new Date() : null,
       completedById: parsed.data.isCompleted ? user.id : null,
     },
+    select: {
+      checklist: {
+        select: {
+          cardId: true,
+        },
+      },
+    },
   });
 
+  await touchCard(item.checklist.cardId);
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Checklist actualizado.");
@@ -383,6 +416,8 @@ export async function createAttachmentAction(
     },
   });
 
+  await touchCard(parsed.data.cardId);
+  await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
   return success(undefined, "Adjunto agregado.");

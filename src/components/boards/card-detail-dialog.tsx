@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, Paperclip, Send, SquareCheckBig, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -45,24 +45,45 @@ import {
   getStatusLabel,
   toDateInputValue,
 } from "@/lib/utils";
-import type { BoardMemberView, CardDetailView, LabelView } from "@/types";
+import { UserAvatar } from "@/components/ui/avatar";
+import type {
+  BoardMemberView,
+  BoardPresenceView,
+  CardDetailView,
+  LabelView,
+} from "@/types";
 
 type CardDetailDialogProps = {
   boardId: string;
   cardId: string | null;
+  cardUpdatedAt: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   members: BoardMemberView[];
+  presence: BoardPresenceView[];
   labels: LabelView[];
   canEdit: boolean;
 };
 
+function haveSameValues(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const leftValues = [...left].sort();
+  const rightValues = [...right].sort();
+
+  return leftValues.every((value, index) => value === rightValues[index]);
+}
+
 export function CardDetailDialog({
   boardId,
   cardId,
+  cardUpdatedAt,
   open,
   onOpenChange,
   members,
+  presence,
   labels,
   canEdit,
 }: CardDetailDialogProps) {
@@ -84,6 +105,7 @@ export function CardDetailDialog({
   >({});
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
+  const remoteNoticeRef = useRef<string | null>(null);
 
   function syncDetail(nextDetail: CardDetailView) {
     setDetail(nextDetail);
@@ -116,6 +138,44 @@ export function CardDetailDialog({
     return result.data;
   }, [boardId]);
 
+  const hasUnsavedCardChanges = useMemo(() => {
+    if (!detail) {
+      return false;
+    }
+
+    return (
+      title !== detail.title ||
+      description !== (detail.description ?? "") ||
+      dueDate !== toDateInputValue(detail.dueDate) ||
+      priority !== detail.priority ||
+      status !== detail.status ||
+      !haveSameValues(
+        selectedLabels,
+        detail.labels.map((label) => label.id),
+      ) ||
+      !haveSameValues(
+        selectedAssignees,
+        detail.assignees.map((assignee) => assignee.userId),
+      )
+    );
+  }, [
+    description,
+    detail,
+    dueDate,
+    priority,
+    selectedAssignees,
+    selectedLabels,
+    status,
+    title,
+  ]);
+  const activeViewers = useMemo(() => {
+    if (!detail) {
+      return [];
+    }
+
+    return presence.filter((entry) => entry.activeCardId === detail.id);
+  }, [detail, presence]);
+
   useEffect(() => {
     if (!open || !cardId) {
       return;
@@ -142,6 +202,62 @@ export function CardDetailDialog({
       cancelled = true;
     };
   }, [boardId, cardId, open, refreshDetail]);
+
+  useEffect(() => {
+    if (!open || !cardId) {
+      remoteNoticeRef.current = null;
+      return;
+    }
+
+    if (!cardUpdatedAt) {
+      if (detail) {
+        toast.error("La tarjeta fue eliminada en otra sesion.");
+        onOpenChange(false);
+      }
+
+      return;
+    }
+
+    if (!detail || cardUpdatedAt === detail.updatedAt) {
+      remoteNoticeRef.current = null;
+      return;
+    }
+
+    if (hasUnsavedCardChanges || isPending) {
+      if (remoteNoticeRef.current !== cardUpdatedAt) {
+        remoteNoticeRef.current = cardUpdatedAt;
+        toast.error("La tarjeta cambio en otra sesion. Guarda tus cambios y volve a abrirla.");
+      }
+
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const nextDetail = await refreshDetail(cardId);
+
+      if (cancelled || !nextDetail) {
+        return;
+      }
+
+      syncDetail(nextDetail);
+      remoteNoticeRef.current = null;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cardId,
+    cardUpdatedAt,
+    detail,
+    hasUnsavedCardChanges,
+    isPending,
+    onOpenChange,
+    open,
+    refreshDetail,
+  ]);
 
   function toggleSelection(values: string[], value: string) {
     return values.includes(value)
@@ -709,6 +825,38 @@ export function CardDetailDialog({
                     ) : (
                       <p className="text-sm text-muted-foreground">
                         Todavía no hay responsables asignados.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-border bg-background/70 p-4">
+                  <p className="text-sm font-semibold">Viendo esta tarjeta</p>
+                  <div className="mt-3 space-y-2">
+                    {activeViewers.length ? (
+                      activeViewers.map((viewer) => (
+                        <div
+                          key={viewer.userId}
+                          className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm"
+                        >
+                          <UserAvatar
+                            name={viewer.name}
+                            src={viewer.avatarUrl}
+                            className="size-9"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-medium">{viewer.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {viewer.sessionCount > 1
+                                ? `${viewer.sessionCount} sesiones abiertas`
+                                : "Online en esta tarjeta"}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No hay presencia activa en esta tarjeta.
                       </p>
                     )}
                   </div>
