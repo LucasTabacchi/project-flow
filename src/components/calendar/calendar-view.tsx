@@ -236,7 +236,7 @@ export function CalendarView({ cards }: CalendarViewProps) {
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]">
         <Card className="overflow-hidden">
           <div className="border-b border-border bg-gradient-to-r from-teal-500/14 via-cyan-400/8 to-orange-400/14 px-6 py-6">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-2xl space-y-3">
                 <Badge variant="secondary" className="w-fit">
                   Ventana editorial
