@@ -145,8 +145,8 @@ function AppSidebarSkeleton({
   };
 }) {
   return (
-    <aside className="hidden w-[310px] shrink-0 xl:block">
-      <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-5 py-6">
+    <aside className="hidden xl:block xl:w-[280px] xl:shrink-0 2xl:w-[310px]">
+      <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-4 py-5 2xl:px-5 2xl:py-6">
         <Link href="/dashboard" className="mb-8 flex items-center gap-3">
           <div className="flex size-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-teal-500 via-cyan-400 to-orange-400 text-white shadow-lg">
             <KanbanSquare className="size-6" />
@@ -197,8 +197,8 @@ function AppSidebarSkeleton({
 
 function AppSidebarComponent({ user }: AppSidebarProps) {
   return (
-    <aside className="hidden w-[310px] shrink-0 xl:block">
-      <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-5 py-6">
+    <aside className="hidden xl:block xl:w-[280px] xl:shrink-0 2xl:w-[310px]">
+      <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-4 py-5 2xl:px-5 2xl:py-6">
         <RoutePrefetch routes={prefetchedRoutes} />
 
         <Link href="/dashboard" className="mb-8 flex items-center gap-3">

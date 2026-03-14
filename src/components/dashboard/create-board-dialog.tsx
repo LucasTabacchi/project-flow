@@ -58,12 +58,12 @@ export function CreateBoardDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="w-full sm:w-auto">
           <Plus className="size-4" />
           Nuevo tablero
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Crear tablero</DialogTitle>
           <DialogDescription>
@@ -71,7 +71,7 @@ export function CreateBoardDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
           <div className="grid gap-5 md:grid-cols-[1.2fr_1fr]">
             <div className="space-y-5">
               <div className="space-y-2">

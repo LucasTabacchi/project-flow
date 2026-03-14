@@ -102,7 +102,7 @@ export function BoardColumn({
         transition,
       }}
       className={cn(
-        "glass-panel flex w-[320px] shrink-0 flex-col rounded-[28px] border border-border p-4",
+        "glass-panel flex w-[min(88vw,320px)] snap-start shrink-0 flex-col rounded-[28px] border border-border p-3.5 sm:p-4",
         isDragging && "opacity-70 shadow-2xl",
       )}
     >
@@ -196,7 +196,7 @@ export function BoardColumn({
       ) : null}
 
       <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-        <div className="kanban-scrollbar flex max-h-[70vh] min-h-24 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+        <div className="kanban-scrollbar flex max-h-[60vh] min-h-24 flex-1 flex-col gap-3 overflow-y-auto pr-1 sm:max-h-[70vh]">
           {list.cards.map((card) => (
             <BoardCard
               key={card.id}

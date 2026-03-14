@@ -23,7 +23,7 @@ export function BoardFilters({ board }: BoardFiltersProps) {
   const setFilters = useBoardStore((state) => state.setFilters);
 
   return (
-    <div className="grid gap-3 rounded-[28px] border border-border bg-card/70 p-4 lg:grid-cols-[2fr_repeat(4,minmax(0,1fr))]">
+    <div className="grid gap-3 rounded-[28px] border border-border bg-card/70 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
       <Input
         value={filters.query}
         onChange={(event) => setFilters({ query: event.target.value })}
@@ -105,7 +105,7 @@ export function BoardFilters({ board }: BoardFiltersProps) {
       <Button
         type="button"
         variant={filters.overdueOnly ? "default" : "secondary"}
-        className="justify-center"
+        className="w-full justify-center sm:col-span-2 xl:col-span-1"
         onClick={() => setFilters({ overdueOnly: !filters.overdueOnly })}
       >
         Solo vencidas

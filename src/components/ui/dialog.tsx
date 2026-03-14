@@ -49,13 +49,13 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          "glass-floating animate-enter fixed top-1/2 left-1/2 z-50 grid w-[min(92vw,920px)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[32px] border border-border p-6 duration-200",
+          "glass-floating animate-enter fixed top-1/2 left-1/2 z-50 grid w-[min(94vw,920px)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[28px] border border-border p-4 duration-200 sm:w-[min(92vw,920px)] sm:rounded-[32px] sm:p-6",
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute top-4 right-4 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground">
+        <DialogPrimitive.Close className="absolute top-3 right-3 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:top-4 sm:right-4">
           <X className="size-4" />
           <span className="sr-only">Cerrar</span>
         </DialogPrimitive.Close>

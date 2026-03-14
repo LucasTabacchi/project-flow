@@ -115,20 +115,22 @@ export function BoardHeader({ board }: BoardHeaderProps) {
   return (
     <>
       <section className="glass-panel overflow-hidden rounded-[32px] border border-border">
-        <div className={`h-40 bg-gradient-to-r ${themeConfig.gradientClass}`} />
-        <div className="-mt-10 space-y-5 px-6 pb-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className={`h-32 bg-gradient-to-r sm:h-40 ${themeConfig.gradientClass}`} />
+        <div className="-mt-8 space-y-5 px-4 pb-4 sm:-mt-10 sm:px-6 sm:pb-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
               <Badge className={themeConfig.chipClass}>{getRoleLabel(board.role)}</Badge>
               <div>
-                <h2 className="font-display text-4xl font-semibold">{board.name}</h2>
+                <h2 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold">
+                  {board.name}
+                </h2>
                 <p className="mt-2 max-w-3xl text-muted-foreground">
                   {board.description || "Este tablero todavía no tiene descripción."}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
               {board.permissions.canManageMembers ? (
                 <InviteMemberDialog boardId={board.id} />
               ) : null}
@@ -147,8 +149,8 @@ export function BoardHeader({ board }: BoardHeaderProps) {
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="flex flex-wrap gap-3">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-[24px] border border-border bg-background/70 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                   Tareas
@@ -251,7 +253,7 @@ export function BoardHeader({ board }: BoardHeaderProps) {
       </section>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Configurar tablero</DialogTitle>
             <DialogDescription>
@@ -294,7 +296,7 @@ export function BoardHeader({ board }: BoardHeaderProps) {
             </div>
           </div>
 
-          <DialogFooter className="justify-between sm:justify-between">
+          <DialogFooter className="justify-between gap-2 sm:justify-between">
             {board.permissions.canDelete ? (
               <Button
                 variant="destructive"
@@ -320,7 +322,7 @@ export function BoardHeader({ board }: BoardHeaderProps) {
       </Dialog>
 
       <Dialog open={labelOpen} onOpenChange={setLabelOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Nueva etiqueta</DialogTitle>
             <DialogDescription>

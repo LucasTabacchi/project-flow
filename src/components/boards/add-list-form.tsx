@@ -42,7 +42,7 @@ export function AddListForm({ boardId, disabled = false }: AddListFormProps) {
   }
 
   return (
-    <div className="w-[320px] shrink-0">
+    <div className="w-[min(88vw,320px)] snap-start shrink-0">
       {!open ? (
         <Button
           type="button"
@@ -66,14 +66,15 @@ export function AddListForm({ boardId, disabled = false }: AddListFormProps) {
             autoFocus
             required
           />
-          <div className="mt-3 flex gap-2">
-            <Button type="submit" size="sm" disabled={isPending}>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Button type="submit" size="sm" className="w-full sm:w-auto" disabled={isPending}>
               {isPending ? "Creando..." : "Crear"}
             </Button>
             <Button
               type="button"
               size="sm"
               variant="ghost"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setOpen(false);
                 setName("");

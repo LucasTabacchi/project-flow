@@ -307,7 +307,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <BoardHeader board={currentBoard} />
       <BoardRealtimeSync
         boardId={currentBoard.id}
@@ -318,7 +318,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       <BoardFilters board={currentBoard} />
 
       {isFilteredView ? (
-        <div className="flex items-center gap-3 rounded-[24px] border border-dashed border-border bg-card/70 px-4 py-3 text-sm text-muted-foreground">
+        <div className="flex flex-col items-start gap-2 rounded-[24px] border border-dashed border-border bg-card/70 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-3">
           <Badge variant="secondary">Vista filtrada</Badge>
           El drag and drop se pausa mientras hay filtros activos.
         </div>
@@ -336,7 +336,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
             items={currentBoard.lists.map((list) => `list:${list.id}`)}
             strategy={horizontalListSortingStrategy}
           >
-            <div className="kanban-scrollbar flex gap-4 overflow-x-auto pb-4">
+            <div className="kanban-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
               {visibleLists.map((list) => (
                 <BoardColumn
                   key={list.id}
@@ -356,14 +356,14 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
 
           <DragOverlay>
             {activeCard ? (
-              <div className="glass-panel w-[300px] rounded-[24px] border border-border p-4 shadow-2xl">
+              <div className="glass-panel w-[min(82vw,300px)] rounded-[24px] border border-border p-4 shadow-2xl">
                 <p className="font-semibold">{activeCard.title}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {activeCard.description || "Tarjeta en movimiento"}
                 </p>
               </div>
             ) : activeList ? (
-              <div className="glass-panel w-[320px] rounded-[28px] border border-border p-4 shadow-2xl">
+              <div className="glass-panel w-[min(82vw,320px)] rounded-[28px] border border-border p-4 shadow-2xl">
                 <p className="font-display text-lg font-semibold">{activeList.name}</p>
                 <p className="text-sm text-muted-foreground">
                   {activeList.cards.length} tarjetas

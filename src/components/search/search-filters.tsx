@@ -115,7 +115,7 @@ export function SearchFilters({
             Encontrá trabajo por texto, etiquetas, prioridad, responsable o tablero.
           </p>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-[2fr_repeat(5,minmax(0,1fr))]">
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))]">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -209,7 +209,7 @@ export function SearchFilters({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
         {isPending ? (
           <span className="text-sm text-muted-foreground">Actualizando resultados...</span>
         ) : null}
@@ -217,6 +217,7 @@ export function SearchFilters({
         <Button
           type="button"
           variant={initialFilters.overdue === "true" ? "default" : "secondary"}
+          className="w-full sm:w-auto"
           onClick={() =>
             updateFilter("overdue", initialFilters.overdue === "true" ? "false" : "true")
           }

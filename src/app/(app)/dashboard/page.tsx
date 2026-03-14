@@ -158,11 +158,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="glass-panel flex flex-col gap-5 rounded-[32px] border border-border px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
+      <section className="glass-panel flex flex-col gap-5 rounded-[32px] border border-border px-5 py-5 sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-3">
           <Badge>Hola, {user.name.split(" ")[0]}</Badge>
           <div>
-            <h2 className="font-display text-4xl font-semibold">
+            <h2 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold">
               Todo tu flujo de trabajo en un solo panel.
             </h2>
             <p className="mt-2 max-w-2xl text-muted-foreground">

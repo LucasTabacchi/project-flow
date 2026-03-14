@@ -457,11 +457,11 @@ export function CardDetailDialog({
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="max-h-[92vh] max-w-6xl overflow-hidden p-0">
-        <div className="grid h-full min-h-[72vh] grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="border-b border-border/60 p-6 lg:border-r lg:border-b-0">
+      <DialogContent className="max-h-[100dvh] w-[min(96vw,72rem)] max-w-6xl overflow-hidden p-0 sm:max-h-[92vh] sm:w-[min(94vw,72rem)]">
+        <div className="grid h-full min-h-0 grid-cols-1 lg:min-h-[72vh] lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="border-b border-border/60 p-4 sm:p-6 lg:border-r lg:border-b-0">
             <DialogHeader>
-              <DialogTitle className="text-2xl">
+              <DialogTitle className="text-xl sm:text-2xl">
                 {detail?.title || "Detalle de tarjeta"}
               </DialogTitle>
               <DialogDescription>
@@ -477,13 +477,13 @@ export function CardDetailDialog({
               </div>
             ) : detail ? (
               <Tabs defaultValue="overview" className="mt-6">
-                <TabsList>
+                <TabsList className="h-auto w-full flex-wrap justify-start">
                   <TabsTrigger value="overview">Resumen</TabsTrigger>
                   <TabsTrigger value="checklists">Checklist</TabsTrigger>
                   <TabsTrigger value="activity">Actividad</TabsTrigger>
                 </TabsList>
 
-                <ScrollArea className="mt-4 h-[58vh] pr-4">
+                <ScrollArea className="mt-4 h-[min(52vh,32rem)] pr-2 sm:h-[58vh] sm:pr-4">
                   <TabsContent value="overview" className="space-y-5 pr-2">
                     <div className="space-y-2">
                       <Label>Título</Label>
@@ -502,7 +502,7 @@ export function CardDetailDialog({
                       />
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
                         <Label>Estado</Label>
                         <Select
@@ -622,7 +622,7 @@ export function CardDetailDialog({
                   </TabsContent>
 
                   <TabsContent value="checklists" className="space-y-5 pr-2">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
                         value={checklistTitle}
                         onChange={(event) => setChecklistTitle(event.target.value)}
@@ -678,7 +678,7 @@ export function CardDetailDialog({
                           ))}
                         </div>
 
-                        <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                           <Input
                             value={checklistItemDrafts[checklist.id] ?? ""}
                             onChange={(event) =>
@@ -726,7 +726,7 @@ export function CardDetailDialog({
                         ))}
                       </div>
                       {canEdit ? (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                        <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_auto]">
                           <Input
                             value={attachmentName}
                             onChange={(event) => setAttachmentName(event.target.value)}
@@ -763,7 +763,7 @@ export function CardDetailDialog({
                         ))}
                       </div>
                       {canEdit ? (
-                        <div className="mt-3 flex gap-2">
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                           <Textarea
                             value={comment}
                             onChange={(event) => setComment(event.target.value)}
@@ -782,7 +782,7 @@ export function CardDetailDialog({
             ) : null}
           </div>
 
-          <aside className="bg-card/70 p-6">
+          <aside className="bg-card/70 p-4 sm:p-6">
             {detail ? (
               <div className="space-y-5">
                 <div className="rounded-[28px] border border-border bg-background/70 p-4">
