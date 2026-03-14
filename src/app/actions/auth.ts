@@ -11,6 +11,7 @@ import {
 import { createSession, destroySession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db";
+import { getPrismaErrorMessage } from "@/lib/prisma-error";
 import { loginSchema, registerSchema } from "@/lib/validators/auth";
 
 function getFormValue(formData: FormData, key: string) {
@@ -35,29 +36,38 @@ export async function loginAction(
     return fromZodError(parsed.error);
   }
 
-  const user = await prisma.user.findUnique({
-    where: {
-      email: parsed.data.email,
-    },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        email: parsed.data.email,
+      },
+    });
 
-  if (!user) {
-    return failure("No encontramos una cuenta con ese email.");
+    if (!user) {
+      return failure("No encontramos una cuenta con ese email.");
+    }
+
+    const isValidPassword = await verifyPassword(
+      parsed.data.password,
+      user.passwordHash,
+    );
+
+    if (!isValidPassword) {
+      return failure("La contraseña es incorrecta.");
+    }
+
+    await createSession(user.id);
+    revalidatePath("/", "layout");
+
+    return success({ redirectTo: "/dashboard" }, "Bienvenido de nuevo.");
+  } catch (error) {
+    return failure(
+      getPrismaErrorMessage(
+        error,
+        "No pudimos iniciar sesión en este momento. Intentá de nuevo en unos minutos.",
+      ),
+    );
   }
-
-  const isValidPassword = await verifyPassword(
-    parsed.data.password,
-    user.passwordHash,
-  );
-
-  if (!isValidPassword) {
-    return failure("La contraseña es incorrecta.");
-  }
-
-  await createSession(user.id);
-  revalidatePath("/", "layout");
-
-  return success({ redirectTo: "/dashboard" }, "Bienvenido de nuevo.");
 }
 
 export async function registerAction(
@@ -75,39 +85,48 @@ export async function registerAction(
     return fromZodError(parsed.error);
   }
 
-  const existingUser = await prisma.user.findUnique({
-    where: {
-      email: parsed.data.email,
-    },
-  });
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: parsed.data.email,
+      },
+    });
 
-  if (existingUser) {
-    return failure("Ese email ya está registrado.");
+    if (existingUser) {
+      return failure("Ese email ya está registrado.");
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        passwordHash: await hashPassword(parsed.data.password),
+      },
+    });
+
+    await prisma.boardInvitation.updateMany({
+      where: {
+        email: user.email,
+        inviteeId: null,
+        status: "PENDING",
+      },
+      data: {
+        inviteeId: user.id,
+      },
+    });
+
+    await createSession(user.id);
+    revalidatePath("/", "layout");
+
+    return success({ redirectTo: "/dashboard" }, "Cuenta creada correctamente.");
+  } catch (error) {
+    return failure(
+      getPrismaErrorMessage(
+        error,
+        "No pudimos crear la cuenta en este momento. Intentá de nuevo en unos minutos.",
+      ),
+    );
   }
-
-  const user = await prisma.user.create({
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email,
-      passwordHash: await hashPassword(parsed.data.password),
-    },
-  });
-
-  await prisma.boardInvitation.updateMany({
-    where: {
-      email: user.email,
-      inviteeId: null,
-      status: "PENDING",
-    },
-    data: {
-      inviteeId: user.id,
-    },
-  });
-
-  await createSession(user.id);
-  revalidatePath("/", "layout");
-
-  return success({ redirectTo: "/dashboard" }, "Cuenta creada correctamente.");
 }
 
 export async function logoutAction() {

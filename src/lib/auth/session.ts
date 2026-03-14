@@ -8,6 +8,7 @@ import { cache } from "react";
 
 import { SESSION_DURATION_DAYS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { getPrismaErrorMessage } from "@/lib/prisma-error";
 
 const SESSION_COOKIE_NAME =
   process.env.SESSION_COOKIE_NAME ?? "projectflow_session";
@@ -24,37 +25,45 @@ export const getCurrentSession = cache(async () => {
     return null;
   }
 
-  const session = await prisma.session.findUnique({
-    where: {
-      tokenHash: hashToken(token),
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          avatarUrl: true,
-          bio: true,
-          createdAt: true,
-          updatedAt: true,
+  try {
+    const session = await prisma.session.findUnique({
+      where: {
+        tokenHash: hashToken(token),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            bio: true,
+            createdAt: true,
+            updatedAt: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!session) {
-    cookieStore.delete(SESSION_COOKIE_NAME);
+    if (!session) {
+      return null;
+    }
+
+    if (session.expiresAt < new Date()) {
+      return null;
+    }
+
+    return session;
+  } catch (error) {
+    console.error(
+      "[session]",
+      getPrismaErrorMessage(
+        error,
+        "No pudimos validar la sesión actual.",
+      ),
+    );
     return null;
   }
-
-  if (session.expiresAt < new Date()) {
-    await prisma.session.delete({ where: { id: session.id } });
-    cookieStore.delete(SESSION_COOKIE_NAME);
-    return null;
-  }
-
-  return session;
 });
 
 export const getCurrentUser = cache(async () => {
@@ -99,12 +108,22 @@ export async function destroySession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-  if (token) {
-    await prisma.session.deleteMany({
-      where: {
-        tokenHash: hashToken(token),
-      },
-    });
+  try {
+    if (token) {
+      await prisma.session.deleteMany({
+        where: {
+          tokenHash: hashToken(token),
+        },
+      });
+    }
+  } catch (error) {
+    console.error(
+      "[session]",
+      getPrismaErrorMessage(
+        error,
+        "No pudimos cerrar la sesión actual.",
+      ),
+    );
   }
 
   cookieStore.delete(SESSION_COOKIE_NAME);

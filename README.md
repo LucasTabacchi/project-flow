@@ -50,8 +50,8 @@ Creá `.env.local` a partir de `.env.example`.
 
 ```env
 # Runtime en Vercel / serverless:
-# Supavisor transaction pooler (puerto 6543) + pgbouncer=true
-DATABASE_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:6543/postgres?pgbouncer=true"
+# Supavisor transaction pooler (puerto 6543) + pgbouncer=true + connection_limit=1
+DATABASE_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
 
 # Prisma CLI / db push / migrations:
 # Supavisor session pooler (puerto 5432)
