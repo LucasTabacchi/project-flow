@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { Eye, EyeOff, LoaderCircle, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 
 import { loginAction, type AuthActionState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -16,62 +17,133 @@ function SubmitButton() {
 
   return (
     <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? "Ingresando..." : "Iniciar sesión"}
+      {pending ? (
+        <>
+          <LoaderCircle className="size-4 animate-spin" />
+          Ingresando...
+        </>
+      ) : (
+        "Iniciar sesión"
+      )}
     </Button>
   );
 }
 
 export function LoginForm() {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
   const [state, formAction] = useActionState<AuthActionState | null, FormData>(
     loginAction,
     null,
   );
 
+  const emailError =
+    state && !state.ok ? state.fieldErrors?.email?.[0] : undefined;
+  const passwordError =
+    state && !state.ok ? state.fieldErrors?.password?.[0] : undefined;
+  const hasFieldErrors = Boolean(emailError || passwordError);
+  const generalError =
+    state && !state.ok && (!hasFieldErrors || !state.fieldErrors)
+      ? state.message
+      : undefined;
+
   useEffect(() => {
-    if (!state) {
+    if (!state?.ok) {
       return;
     }
 
-    if (state.ok) {
-      toast.success(state.message ?? "Sesión iniciada.");
-      router.push(state.data?.redirectTo ?? "/dashboard");
-      router.refresh();
-      return;
-    }
-
-    toast.error(state.message);
+    toast.success(state.message ?? "Sesión iniciada.");
+    router.replace(state.data?.redirectTo ?? "/dashboard");
+    router.refresh();
   }, [router, state]);
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} noValidate className="space-y-5">
+      <div className="rounded-[24px] border border-border bg-secondary/35 p-4 text-sm text-muted-foreground">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex size-9 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+            <ShieldCheck className="size-4" />
+          </div>
+          <div className="space-y-1">
+            <p className="font-medium text-foreground">Acceso protegido</p>
+            <p>
+              Usá el email con el que creaste tu cuenta o recibiste una
+              invitación al tablero.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {generalError ? (
+        <div
+          role="alert"
+          className="rounded-[20px] border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          {generalError}
+        </div>
+      ) : null}
+
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" placeholder="tu@email.com" />
-        {state && !state.ok && state.fieldErrors?.email?.[0] ? (
-          <p className="text-xs text-destructive">{state.fieldErrors.email[0]}</p>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="tu@empresa.com"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          autoFocus
+          required
+          aria-invalid={Boolean(emailError)}
+          aria-describedby={emailError ? "login-email-error" : undefined}
+        />
+        {emailError ? (
+          <p id="login-email-error" className="text-xs text-destructive">
+            {emailError}
+          </p>
         ) : null}
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">Contraseña</Label>
-          <span className="text-xs text-muted-foreground">Demo1234!</span>
+        <Label htmlFor="password">Contraseña</Label>
+        <div className="relative">
+          <Input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            className="pr-12"
+            required
+            aria-invalid={Boolean(passwordError)}
+            aria-describedby={passwordError ? "login-password-error" : undefined}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1/2 size-9 -translate-y-1/2 rounded-xl text-muted-foreground hover:text-foreground"
+            aria-label={
+              showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+            }
+            aria-pressed={showPassword}
+            onClick={() => setShowPassword((current) => !current)}
+          >
+            {showPassword ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
+          </Button>
         </div>
-        <Input id="password" name="password" type="password" />
-        {state && !state.ok && state.fieldErrors?.password?.[0] ? (
-          <p className="text-xs text-destructive">
-            {state.fieldErrors.password[0]}
+        {passwordError ? (
+          <p id="login-password-error" className="text-xs text-destructive">
+            {passwordError}
           </p>
         ) : null}
       </div>
 
       <SubmitButton />
-
-      <div className="rounded-[24px] border border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-        Tip rápido: si ejecutás el seed, podés entrar con
-        <span className="font-medium text-foreground"> sofia@projectflow.dev</span>.
-      </div>
 
       <p className="text-center text-sm text-muted-foreground">
         ¿No tenés cuenta?{" "}

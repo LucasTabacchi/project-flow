@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
 import { Menu, Plus, Settings, UserRound } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { logoutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -44,7 +45,9 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 };
 
 export function AppHeader({ user }: AppHeaderProps) {
+  const router = useRouter();
   const pathname = usePathname();
+  const [isLoggingOut, startLogout] = useTransition();
   const current =
     pageTitles[pathname] ??
     (pathname.startsWith("/boards/")
@@ -107,13 +110,19 @@ export function AppHeader({ user }: AppHeaderProps) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <form action={logoutAction}>
-                <DropdownMenuItem asChild>
-                  <button type="submit" className="w-full">
-                    Cerrar sesión
-                  </button>
-                </DropdownMenuItem>
-              </form>
+              <DropdownMenuItem
+                disabled={isLoggingOut}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  startLogout(async () => {
+                    await logoutAction();
+                    router.replace("/login");
+                    router.refresh();
+                  });
+                }}
+              >
+                Cerrar sesión
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

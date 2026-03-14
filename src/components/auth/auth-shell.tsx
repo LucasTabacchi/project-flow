@@ -1,13 +1,27 @@
 import Link from "next/link";
-import { ArrowRight, CalendarRange, ChartColumn, KanbanSquare, Users } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarRange,
+  ChartColumn,
+  KanbanSquare,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+
+type AsideLink = {
+  href: string;
+  label: string;
+};
 
 type AuthShellProps = {
   title: string;
   subtitle: string;
   children: React.ReactNode;
   footer: React.ReactNode;
+  asideLink?: AsideLink;
+  showDemoCredentials?: boolean;
 };
 
 const highlights = [
@@ -33,6 +47,8 @@ export function AuthShell({
   subtitle,
   children,
   footer,
+  asideLink,
+  showDemoCredentials = false,
 }: AuthShellProps) {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.15fr_560px]">
@@ -62,7 +78,9 @@ export function AuthShell({
                     <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary">
                       <Icon className="size-5" />
                     </div>
-                    <h2 className="font-display text-lg font-semibold">{item.title}</h2>
+                    <h2 className="font-display text-lg font-semibold">
+                      {item.title}
+                    </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {item.description}
                     </p>
@@ -76,39 +94,74 @@ export function AuthShell({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">
-                  Demo accesible
+                  {showDemoCredentials ? "Entorno demo" : "Acceso seguro"}
                 </p>
                 <h3 className="mt-2 font-display text-2xl font-semibold">
-                  Entrá con los usuarios seed
+                  {showDemoCredentials
+                    ? "Entrá con los usuarios seed"
+                    : "Sesiones protegidas y permisos por tablero"}
                 </h3>
               </div>
               <div className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-                <CalendarRange className="size-5" />
+                {showDemoCredentials ? (
+                  <CalendarRange className="size-5" />
+                ) : (
+                  <ShieldCheck className="size-5" />
+                )}
               </div>
             </div>
+
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <div className="rounded-[24px] border border-border bg-background/70 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Product owner
-                </p>
-                <p className="mt-2 font-semibold">sofia@projectflow.dev</p>
-                <p className="text-sm text-muted-foreground">Demo1234!</p>
-              </div>
-              <div className="rounded-[24px] border border-border bg-background/70 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Engineering
-                </p>
-                <p className="mt-2 font-semibold">diego@projectflow.dev</p>
-                <p className="text-sm text-muted-foreground">Demo1234!</p>
-              </div>
+              {showDemoCredentials ? (
+                <>
+                  <div className="rounded-[24px] border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Product owner
+                    </p>
+                    <p className="mt-2 font-semibold">sofia@projectflow.dev</p>
+                    <p className="text-sm text-muted-foreground">Demo1234!</p>
+                  </div>
+                  <div className="rounded-[24px] border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Engineering
+                    </p>
+                    <p className="mt-2 font-semibold">diego@projectflow.dev</p>
+                    <p className="text-sm text-muted-foreground">Demo1234!</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-[24px] border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Sesiones
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      La autenticación usa cookies HTTP-only y validaciones del
+                      lado servidor antes de cada mutación.
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Acceso
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Cada usuario ve sus tableros o los que fueron compartidos
+                      con su email y rol correspondiente.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-            <Link
-              href="/register"
-              className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary"
-            >
-              Crear una cuenta nueva
-              <ArrowRight className="size-4" />
-            </Link>
+
+            {asideLink ? (
+              <Link
+                href={asideLink.href}
+                className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary"
+              >
+                {asideLink.label}
+                <ArrowRight className="size-4" />
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>
