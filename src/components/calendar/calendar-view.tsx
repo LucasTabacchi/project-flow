@@ -22,7 +22,13 @@ import { DayPicker } from "react-day-picker";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getBoardTheme, getPriorityLabel, getStatusLabel, isCardOverdue } from "@/lib/utils";
+import {
+  cn,
+  getBoardTheme,
+  getPriorityLabel,
+  getStatusLabel,
+  isCardOverdue,
+} from "@/lib/utils";
 import type { SearchCardView } from "@/types";
 
 type CalendarViewProps = {
@@ -33,6 +39,8 @@ type CalendarMetricProps = {
   label: string;
   value: string | number;
   hint: string;
+  className?: string;
+  valueClassName?: string;
 };
 
 function toLocalCalendarDate(value: string) {
@@ -53,13 +61,31 @@ function compareCardDates(left: SearchCardView, right: SearchCardView) {
   return parseISO(left.dueDate).getTime() - parseISO(right.dueDate).getTime();
 }
 
-function CalendarMetric({ label, value, hint }: CalendarMetricProps) {
+function CalendarMetric({
+  label,
+  value,
+  hint,
+  className,
+  valueClassName,
+}: CalendarMetricProps) {
   return (
-    <div className="rounded-[24px] border border-border bg-background/72 px-4 py-4">
+    <div
+      className={cn(
+        "min-w-0 rounded-[24px] border border-border bg-background/72 px-4 py-4",
+        className,
+      )}
+    >
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-3 font-display text-3xl font-semibold">{value}</p>
+      <p
+        className={cn(
+          "mt-3 min-w-0 font-display text-[clamp(1.6rem,3vw,2.3rem)] font-semibold leading-[0.95] tracking-tight text-balance",
+          valueClassName,
+        )}
+      >
+        {value}
+      </p>
       <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
     </div>
   );
@@ -226,10 +252,12 @@ export function CalendarView({ cards }: CalendarViewProps) {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <CalendarMetric
+                  className="sm:col-span-2 xl:col-span-1"
                   label="Mes visible"
                   value={format(visibleMonth, "MMMM", { locale: es })}
+                  valueClassName="capitalize"
                   hint={`${visibleMonthCards.length} tarjetas en agenda`}
                 />
                 <CalendarMetric
