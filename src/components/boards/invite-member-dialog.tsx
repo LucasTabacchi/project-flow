@@ -42,16 +42,20 @@ export function InviteMemberDialog({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const nextEmail = String(formData.get("email") ?? "");
+    const nextRole = String(formData.get("role") ?? role);
 
     startTransition(async () => {
       const result = await inviteMemberAction({
         boardId,
-        email,
-        role,
+        email: nextEmail,
+        role: nextRole,
       });
 
       if (!result.ok) {
-        toast.error(result.message);
+        toast.error(result.fieldErrors?.email?.[0] ?? result.message);
         return;
       }
 
@@ -93,6 +97,7 @@ export function InviteMemberDialog({
             <Label htmlFor="invite-email">Email</Label>
             <Input
               id="invite-email"
+              name="email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -102,6 +107,7 @@ export function InviteMemberDialog({
           </div>
           <div className="space-y-2">
             <Label>Rol</Label>
+            <input type="hidden" name="role" value={role} />
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger>
                 <SelectValue />
