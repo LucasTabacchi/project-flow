@@ -2,6 +2,13 @@ import { z } from "zod";
 
 import { BOARD_ROLES, BOARD_THEMES, LABEL_COLORS } from "@/lib/constants";
 
+const entityIdSchema = z
+  .string()
+  .trim()
+  .min(1, "Falta un identificador.")
+  .max(120, "El identificador es demasiado largo.")
+  .regex(/^[A-Za-z0-9_-]+$/, "El identificador tiene un formato inválido.");
+
 export const createBoardSchema = z.object({
   name: z
     .string()
@@ -18,15 +25,15 @@ export const createBoardSchema = z.object({
 });
 
 export const updateBoardSchema = createBoardSchema.extend({
-  boardId: z.string().cuid(),
+  boardId: entityIdSchema,
 });
 
 export const deleteBoardSchema = z.object({
-  boardId: z.string().cuid(),
+  boardId: entityIdSchema,
 });
 
 export const createListSchema = z.object({
-  boardId: z.string().cuid(),
+  boardId: entityIdSchema,
   name: z
     .string()
     .trim()
@@ -35,21 +42,21 @@ export const createListSchema = z.object({
 });
 
 export const updateListSchema = createListSchema.extend({
-  listId: z.string().cuid(),
+  listId: entityIdSchema,
 });
 
 export const deleteListSchema = z.object({
-  boardId: z.string().cuid(),
-  listId: z.string().cuid(),
+  boardId: entityIdSchema,
+  listId: entityIdSchema,
 });
 
 export const reorderListsSchema = z.object({
-  boardId: z.string().cuid(),
-  orderedIds: z.array(z.string().cuid()).min(1),
+  boardId: entityIdSchema,
+  orderedIds: z.array(entityIdSchema).min(1),
 });
 
 export const inviteMemberSchema = z.object({
-  boardId: z.string().cuid(),
+  boardId: entityIdSchema,
   email: z
     .string()
     .trim()
@@ -59,7 +66,7 @@ export const inviteMemberSchema = z.object({
 });
 
 export const respondInvitationSchema = z.object({
-  invitationId: z.string().cuid(),
+  invitationId: entityIdSchema,
 });
 
 export const respondInvitationByTokenSchema = z.object({
@@ -67,7 +74,7 @@ export const respondInvitationByTokenSchema = z.object({
 });
 
 export const createLabelSchema = z.object({
-  boardId: z.string().cuid(),
+  boardId: entityIdSchema,
   name: z
     .string()
     .trim()

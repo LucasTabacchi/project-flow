@@ -2,6 +2,13 @@ import { z } from "zod";
 
 import { CARD_PRIORITIES, CARD_STATUSES } from "@/lib/constants";
 
+const entityIdSchema = z
+  .string()
+  .trim()
+  .min(1, "Falta un identificador.")
+  .max(120, "El identificador es demasiado largo.")
+  .regex(/^[A-Za-z0-9_-]+$/, "El identificador tiene un formato inválido.");
+
 const dueDateSchema = z
   .string()
   .trim()
@@ -13,8 +20,8 @@ const dueDateSchema = z
   );
 
 export const createCardSchema = z.object({
-  boardId: z.string().cuid(),
-  listId: z.string().cuid(),
+  boardId: entityIdSchema,
+  listId: entityIdSchema,
   title: z
     .string()
     .trim()
@@ -23,8 +30,8 @@ export const createCardSchema = z.object({
 });
 
 export const updateCardSchema = z.object({
-  boardId: z.string().cuid(),
-  cardId: z.string().cuid(),
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
   title: z
     .string()
     .trim()
@@ -39,28 +46,28 @@ export const updateCardSchema = z.object({
   dueDate: dueDateSchema,
   priority: z.enum(CARD_PRIORITIES),
   status: z.enum(CARD_STATUSES),
-  labelIds: z.array(z.string().cuid()).default([]),
-  assigneeIds: z.array(z.string().cuid()).default([]),
+  labelIds: z.array(entityIdSchema).default([]),
+  assigneeIds: z.array(entityIdSchema).default([]),
 });
 
 export const deleteCardSchema = z.object({
-  boardId: z.string().cuid(),
-  cardId: z.string().cuid(),
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
 });
 
 export const reorderCardsSchema = z.object({
-  boardId: z.string().cuid(),
+  boardId: entityIdSchema,
   lists: z.array(
     z.object({
-      id: z.string().cuid(),
-      cardIds: z.array(z.string().cuid()),
+      id: entityIdSchema,
+      cardIds: z.array(entityIdSchema),
     }),
   ),
 });
 
 export const addCommentSchema = z.object({
-  boardId: z.string().cuid(),
-  cardId: z.string().cuid(),
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
   body: z
     .string()
     .trim()
@@ -69,8 +76,8 @@ export const addCommentSchema = z.object({
 });
 
 export const addChecklistSchema = z.object({
-  boardId: z.string().cuid(),
-  cardId: z.string().cuid(),
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
   title: z
     .string()
     .trim()
@@ -79,8 +86,8 @@ export const addChecklistSchema = z.object({
 });
 
 export const addChecklistItemSchema = z.object({
-  boardId: z.string().cuid(),
-  checklistId: z.string().cuid(),
+  boardId: entityIdSchema,
+  checklistId: entityIdSchema,
   title: z
     .string()
     .trim()
@@ -89,14 +96,14 @@ export const addChecklistItemSchema = z.object({
 });
 
 export const toggleChecklistItemSchema = z.object({
-  boardId: z.string().cuid(),
-  itemId: z.string().cuid(),
+  boardId: entityIdSchema,
+  itemId: entityIdSchema,
   isCompleted: z.boolean(),
 });
 
 export const createAttachmentSchema = z.object({
-  boardId: z.string().cuid(),
-  cardId: z.string().cuid(),
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
   name: z
     .string()
     .trim()
