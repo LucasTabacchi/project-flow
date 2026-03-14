@@ -56,6 +56,16 @@ export function InviteMemberDialog({
       }
 
       toast.success(result.message ?? "Invitación enviada.");
+
+      if (!result.data?.emailSent && result.data?.inviteUrl) {
+        try {
+          await navigator.clipboard.writeText(result.data.inviteUrl);
+          toast.info("Copié el enlace de invitación al portapapeles para compartirlo manualmente.");
+        } catch {
+          toast.info(`Compartí manualmente este enlace: ${result.data.inviteUrl}`);
+        }
+      }
+
       setEmail("");
       setRole("EDITOR");
       setOpen(false);

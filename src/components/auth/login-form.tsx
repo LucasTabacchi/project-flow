@@ -29,7 +29,17 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm() {
+type LoginFormProps = {
+  initialEmail?: string;
+  redirectTo?: string;
+  registerHref?: string;
+};
+
+export function LoginForm({
+  initialEmail,
+  redirectTo,
+  registerHref = "/register",
+}: LoginFormProps) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [state, formAction] = useActionState<AuthActionState | null, FormData>(
@@ -59,6 +69,10 @@ export function LoginForm() {
 
   return (
     <form action={formAction} noValidate className="space-y-5">
+      {redirectTo ? (
+        <input type="hidden" name="redirectTo" value={redirectTo} />
+      ) : null}
+
       <div className="rounded-[24px] border border-border bg-secondary/35 p-4 text-sm text-muted-foreground">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex size-9 items-center justify-center rounded-2xl bg-primary/12 text-primary">
@@ -94,6 +108,7 @@ export function LoginForm() {
           autoCapitalize="none"
           spellCheck={false}
           autoFocus
+          defaultValue={initialEmail}
           required
           aria-invalid={Boolean(emailError)}
           aria-describedby={emailError ? "login-email-error" : undefined}
@@ -147,7 +162,7 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Todavía no tenés cuenta?{" "}
-        <Link href="/register" className="font-semibold text-primary">
+        <Link href={registerHref} className="font-semibold text-primary">
           Crear cuenta
         </Link>
       </p>

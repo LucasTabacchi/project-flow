@@ -135,6 +135,9 @@ export async function getDashboardData(
         where: {
           email,
           status: "PENDING",
+          expiresAt: {
+            gt: now,
+          },
         },
         include: {
           board: {

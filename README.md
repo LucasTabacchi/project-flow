@@ -9,6 +9,7 @@ App web de gestion de proyectos tipo Trello, construida con `Next.js 16`, `React
 - Tableros con listas y tarjetas movibles por drag and drop
 - Detalle de tarjeta con descripcion, prioridad, estado, fecha, checklist, comentarios y adjuntos por URL
 - Miembros por tablero con roles `OWNER`, `EDITOR` y `VIEWER`
+- Invitaciones por email con enlace publico de aceptacion
 - Busqueda global con filtros
 - Vista calendario de vencimientos
 - Modo oscuro
@@ -24,6 +25,7 @@ App web de gestion de proyectos tipo Trello, construida con `Next.js 16`, `React
 - ORM: `Prisma`
 - Estado cliente: `Zustand`
 - Drag and drop: `dnd-kit`
+- Email transaccional: API de `Resend` via `fetch`
 - Deploy objetivo: `Vercel`
 
 ## Configuracion con Supabase
@@ -59,6 +61,13 @@ DIRECT_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.s
 
 # Opcional: cambia el nombre por defecto de la cookie de sesion
 SESSION_COOKIE_NAME="projectflow_session"
+
+# URL publica usada para generar enlaces de invitacion
+APP_URL="https://tu-dominio.com"
+
+# Envio de invitaciones por email
+RESEND_API_KEY="re_..."
+EMAIL_FROM="ProjectFlow <onboarding@tu-dominio.com>"
 ```
 
 ### 4. Sincronizar el schema
@@ -132,6 +141,7 @@ supabase/
 - Prisma usa `DATABASE_URL` para el runtime y `DIRECT_URL` para operaciones CLI que requieren una conexion dedicada.
 - El datasource ya esta configurado con `directUrl` en [`prisma/schema.prisma`](C:\Users\lucas\Desktop\projectflow\prisma\schema.prisma).
 - Las sesiones usan el modelo `Session` de Prisma y una cookie opaca HTTP-only; el servidor resuelve siempre el usuario actual desde base de datos.
+- Las invitaciones generan un `token` unico, envian un correo mediante Resend cuando está configurado y exponen una ruta publica `/invite/[token]` para iniciar sesion, registrarse y aceptar desde el mismo enlace.
 - El acceso a tableros siempre se valida del lado del servidor.
 - Las mutaciones usan `Zod` y revalidan rutas afectadas.
 - El board usa una frontera cliente acotada para `dnd-kit`; el resto de paginas se apoya en Server Components.
@@ -145,6 +155,9 @@ Definí estas variables en Vercel:
 - `DATABASE_URL`
 - `DIRECT_URL`
 - `SESSION_COOKIE_NAME` opcional si querés cambiar el nombre por defecto de la cookie
+- `APP_URL`
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
 
 Luego hacé deploy normal. El build ya fue validado con `next build`.
 

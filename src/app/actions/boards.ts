@@ -12,6 +12,7 @@ import {
 } from "@/lib/action-result";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { buildInvitationUrl, sendBoardInvitationEmail } from "@/lib/email";
 import { canEditBoard, canManageMembers } from "@/lib/permissions";
 import { getPrismaErrorMessage } from "@/lib/prisma-error";
 import { getBoardMembership } from "@/lib/data/boards";
@@ -24,6 +25,7 @@ import {
   inviteMemberSchema,
   reorderListsSchema,
   respondInvitationSchema,
+  respondInvitationByTokenSchema,
   updateBoardSchema,
   updateListSchema,
 } from "@/lib/validators/board";
@@ -54,6 +56,125 @@ async function requireManageMembers(boardId: string, userId: string) {
   }
 
   return membership;
+}
+
+type PendingInvitationRecord = {
+  id: string;
+  boardId: string;
+  role: "OWNER" | "EDITOR" | "VIEWER";
+  token: string;
+  expiresAt: Date;
+};
+
+function isInvitationExpired(expiresAt: Date) {
+  return expiresAt <= new Date();
+}
+
+async function expireInvitation(invitationId: string) {
+  await prisma.boardInvitation
+    .update({
+      where: {
+        id: invitationId,
+      },
+      data: {
+        status: "EXPIRED",
+      },
+    })
+    .catch(() => undefined);
+}
+
+async function getPendingInvitationForEmail(
+  where:
+    | {
+        id: string;
+      }
+    | {
+        token: string;
+      },
+  email: string,
+) {
+  const invitation = await prisma.boardInvitation.findFirst({
+    where: {
+      ...where,
+      email,
+      status: "PENDING",
+    },
+    select: {
+      id: true,
+      boardId: true,
+      role: true,
+      token: true,
+      expiresAt: true,
+    },
+  });
+
+  if (!invitation) {
+    return null;
+  }
+
+  if (isInvitationExpired(invitation.expiresAt)) {
+    await expireInvitation(invitation.id);
+    return "expired" as const;
+  }
+
+  return invitation satisfies PendingInvitationRecord;
+}
+
+async function acceptInvitationRecord(
+  invitation: PendingInvitationRecord,
+  user: Awaited<ReturnType<typeof requireUser>>,
+) {
+  await prisma.$transaction(async (tx) => {
+    const existingMember = await tx.boardMember.findUnique({
+      where: {
+        boardId_userId: {
+          boardId: invitation.boardId,
+          userId: user.id,
+        },
+      },
+    });
+
+    if (!existingMember) {
+      await tx.boardMember.create({
+        data: {
+          boardId: invitation.boardId,
+          userId: user.id,
+          role: invitation.role,
+        },
+      });
+    }
+
+    await tx.boardInvitation.update({
+      where: {
+        id: invitation.id,
+      },
+      data: {
+        status: "ACCEPTED",
+        inviteeId: user.id,
+      },
+    });
+  });
+}
+
+async function declineInvitationRecord(
+  invitation: PendingInvitationRecord,
+  userId: string,
+) {
+  await prisma.boardInvitation.update({
+    where: {
+      id: invitation.id,
+    },
+    data: {
+      status: "DECLINED",
+      inviteeId: userId,
+    },
+  });
+}
+
+function revalidateInvitationPaths(boardId: string, token: string) {
+  revalidatePath("/dashboard");
+  revalidatePath(`/boards/${boardId}`);
+  revalidatePath(`/invite/${token}`);
 }
 
 export async function createBoardAction(
@@ -344,7 +465,9 @@ export async function createLabelAction(input: unknown): Promise<ActionResult> {
   return success(undefined, "Etiqueta creada.");
 }
 
-export async function inviteMemberAction(input: unknown): Promise<ActionResult> {
+export async function inviteMemberAction(
+  input: unknown,
+): Promise<ActionResult<{ emailSent: boolean; inviteUrl: string }>> {
   const user = await requireUser();
   const parsed = inviteMemberSchema.safeParse(input);
 
@@ -363,7 +486,10 @@ export async function inviteMemberAction(input: unknown): Promise<ActionResult> 
   }
 
   try {
-    const [existingUser, existingMember, existingInvitation] = await Promise.all([
+    const now = new Date();
+    const expiresAt = addDays(now, 10);
+    const [existingUser, existingMember, existingInvitation, board] =
+      await Promise.all([
       prisma.user.findUnique({
         where: {
           email: parsed.data.email,
@@ -381,7 +507,14 @@ export async function inviteMemberAction(input: unknown): Promise<ActionResult> 
         where: {
           boardId: parsed.data.boardId,
           email: parsed.data.email,
-          status: "PENDING",
+        },
+      }),
+      prisma.board.findUnique({
+        where: {
+          id: parsed.data.boardId,
+        },
+        select: {
+          name: true,
         },
       }),
     ]);
@@ -390,26 +523,86 @@ export async function inviteMemberAction(input: unknown): Promise<ActionResult> 
       return failure("Ese usuario ya es miembro del tablero.");
     }
 
-    if (existingInvitation) {
+    if (!board) {
+      return failure("No encontramos el tablero a invitar.");
+    }
+
+    if (
+      existingInvitation?.status === "PENDING" &&
+      !isInvitationExpired(existingInvitation.expiresAt)
+    ) {
       return failure("Ya existe una invitación pendiente para ese email.");
     }
 
-    await prisma.boardInvitation.create({
-      data: {
-        boardId: parsed.data.boardId,
-        email: parsed.data.email,
-        role: parsed.data.role as "EDITOR" | "VIEWER",
-        invitedById: user.id,
-        inviteeId: existingUser?.id,
-        token: randomUUID(),
-        expiresAt: addDays(new Date(), 10),
-      },
+    const invitationToken = randomUUID();
+    const invitation = existingInvitation
+      ? await prisma.boardInvitation.update({
+          where: {
+            id: existingInvitation.id,
+          },
+          data: {
+            role: parsed.data.role as "EDITOR" | "VIEWER",
+            invitedById: user.id,
+            inviteeId: existingUser?.id,
+            token: invitationToken,
+            expiresAt,
+            status: "PENDING",
+          },
+        })
+      : await prisma.boardInvitation.create({
+          data: {
+            boardId: parsed.data.boardId,
+            email: parsed.data.email,
+            role: parsed.data.role as "EDITOR" | "VIEWER",
+            invitedById: user.id,
+            inviteeId: existingUser?.id,
+            token: invitationToken,
+            expiresAt,
+          },
+        });
+
+    const inviteUrl = buildInvitationUrl(invitation.token);
+
+    if (!inviteUrl) {
+      revalidateInvitationPaths(parsed.data.boardId, invitation.token);
+
+      return success(
+        {
+          emailSent: false,
+          inviteUrl: `/invite/${invitation.token}`,
+        },
+        "Invitación creada. Configurá APP_URL para generar el enlace público y enviarlo por email.",
+      );
+    }
+
+    const emailResult = await sendBoardInvitationEmail({
+      to: parsed.data.email,
+      boardName: board.name,
+      invitedByName: user.name,
+      inviteUrl,
+      expiresAt,
+      role: parsed.data.role as "EDITOR" | "VIEWER",
     });
 
-    revalidatePath(`/boards/${parsed.data.boardId}`);
-    revalidatePath("/dashboard");
+    revalidateInvitationPaths(parsed.data.boardId, invitation.token);
 
-    return success(undefined, "Invitación enviada.");
+    if (!emailResult.sent) {
+      return success(
+        {
+          emailSent: false,
+          inviteUrl,
+        },
+        emailResult.reason,
+      );
+    }
+
+    return success(
+      {
+        emailSent: true,
+        inviteUrl,
+      },
+      "Invitación enviada por email.",
+    );
   } catch (error) {
     return failure(
       getPrismaErrorMessage(
@@ -431,39 +624,21 @@ export async function acceptInvitationAction(
   }
 
   try {
-    const invitation = await prisma.boardInvitation.findFirst({
-      where: {
-        id: parsed.data.invitationId,
-        email: user.email,
-        status: "PENDING",
-      },
-    });
+    const invitation = await getPendingInvitationForEmail(
+      { id: parsed.data.invitationId },
+      user.email,
+    );
 
     if (!invitation) {
       return failure("La invitación ya no está disponible.");
     }
 
-    await prisma.$transaction([
-      prisma.boardMember.create({
-        data: {
-          boardId: invitation.boardId,
-          userId: user.id,
-          role: invitation.role,
-        },
-      }),
-      prisma.boardInvitation.update({
-        where: {
-          id: invitation.id,
-        },
-        data: {
-          status: "ACCEPTED",
-          inviteeId: user.id,
-        },
-      }),
-    ]);
+    if (invitation === "expired") {
+      return failure("La invitación venció. Pedile al propietario que te envíe una nueva.");
+    }
 
-    revalidatePath("/dashboard");
-    revalidatePath(`/boards/${invitation.boardId}`);
+    await acceptInvitationRecord(invitation, user);
+    revalidateInvitationPaths(invitation.boardId, invitation.token);
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
   } catch (error) {
@@ -487,29 +662,97 @@ export async function declineInvitationAction(
   }
 
   try {
-    const invitation = await prisma.boardInvitation.findFirst({
-      where: {
-        id: parsed.data.invitationId,
-        email: user.email,
-        status: "PENDING",
-      },
-    });
+    const invitation = await getPendingInvitationForEmail(
+      { id: parsed.data.invitationId },
+      user.email,
+    );
 
     if (!invitation) {
       return failure("La invitación ya no está disponible.");
     }
 
-    await prisma.boardInvitation.update({
-      where: {
-        id: invitation.id,
-      },
-      data: {
-        status: "DECLINED",
-        inviteeId: user.id,
-      },
-    });
+    if (invitation === "expired") {
+      return failure("La invitación venció. Pedile al propietario que te envíe una nueva.");
+    }
 
-    revalidatePath("/dashboard");
+    await declineInvitationRecord(invitation, user.id);
+    revalidateInvitationPaths(invitation.boardId, invitation.token);
+
+    return success(undefined, "Invitación rechazada.");
+  } catch (error) {
+    return failure(
+      getPrismaErrorMessage(
+        error,
+        "No pudimos rechazar la invitación en este momento. Intentá de nuevo en unos minutos.",
+      ),
+    );
+  }
+}
+
+export async function acceptInvitationByTokenAction(
+  input: unknown,
+): Promise<ActionResult<{ boardId: string }>> {
+  const user = await requireUser();
+  const parsed = respondInvitationByTokenSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return fromZodError(parsed.error);
+  }
+
+  try {
+    const invitation = await getPendingInvitationForEmail(
+      { token: parsed.data.token },
+      user.email,
+    );
+
+    if (!invitation) {
+      return failure("La invitación ya no está disponible para esta cuenta.");
+    }
+
+    if (invitation === "expired") {
+      return failure("La invitación venció. Pedile al propietario que te envíe una nueva.");
+    }
+
+    await acceptInvitationRecord(invitation, user);
+    revalidateInvitationPaths(invitation.boardId, invitation.token);
+
+    return success({ boardId: invitation.boardId }, "Invitación aceptada.");
+  } catch (error) {
+    return failure(
+      getPrismaErrorMessage(
+        error,
+        "No pudimos aceptar la invitación en este momento. Intentá de nuevo en unos minutos.",
+      ),
+    );
+  }
+}
+
+export async function declineInvitationByTokenAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = respondInvitationByTokenSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return fromZodError(parsed.error);
+  }
+
+  try {
+    const invitation = await getPendingInvitationForEmail(
+      { token: parsed.data.token },
+      user.email,
+    );
+
+    if (!invitation) {
+      return failure("La invitación ya no está disponible para esta cuenta.");
+    }
+
+    if (invitation === "expired") {
+      return failure("La invitación venció. Pedile al propietario que te envíe una nueva.");
+    }
+
+    await declineInvitationRecord(invitation, user.id);
+    revalidateInvitationPaths(invitation.boardId, invitation.token);
 
     return success(undefined, "Invitación rechazada.");
   } catch (error) {

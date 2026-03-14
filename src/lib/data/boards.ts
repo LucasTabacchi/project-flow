@@ -205,6 +205,9 @@ export async function getBoardPageData(
           invitations: {
             where: {
               status: "PENDING",
+              expiresAt: {
+                gt: new Date(),
+              },
             },
             orderBy: {
               createdAt: "desc",

@@ -9,13 +9,47 @@ export const metadata: Metadata = {
     "Creá tu cuenta de ProjectFlow para empezar a organizar tableros, listas y tarjetas.",
 };
 
-export default function RegisterPage() {
+type RegisterPageProps = {
+  searchParams: Promise<{
+    email?: string | string[];
+    redirectTo?: string | string[];
+  }>;
+};
+
+function getSingleSearchParam(value?: string | string[]) {
+  return typeof value === "string" ? value : value?.[0];
+}
+
+function buildAuthHref(
+  pathname: string,
+  redirectTo?: string,
+  email?: string,
+) {
+  const params = new URLSearchParams();
+
+  if (redirectTo) {
+    params.set("redirectTo", redirectTo);
+  }
+
+  if (email) {
+    params.set("email", email);
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+export default async function RegisterPage({ searchParams }: RegisterPageProps) {
+  const params = await searchParams;
+  const email = getSingleSearchParam(params.email);
+  const redirectTo = getSingleSearchParam(params.redirectTo);
+
   return (
     <AuthShell
       title="Crear tu cuenta"
       subtitle="Activá tu espacio y empezá a organizar proyectos con claridad."
       asideLink={{
-        href: "/login",
+        href: buildAuthHref("/login", redirectTo, email),
         label: "Ya tengo cuenta",
       }}
       footer={
@@ -25,7 +59,11 @@ export default function RegisterPage() {
         </>
       }
     >
-      <RegisterForm />
+      <RegisterForm
+        initialEmail={email}
+        loginHref={buildAuthHref("/login", redirectTo, email)}
+        redirectTo={redirectTo}
+      />
     </AuthShell>
   );
 }

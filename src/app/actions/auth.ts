@@ -19,6 +19,14 @@ function getFormValue(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function getSafeRedirectTarget(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard";
+  }
+
+  return value;
+}
+
 export type AuthActionState = ActionResult<{
   redirectTo: string;
 }>;
@@ -27,6 +35,7 @@ export async function loginAction(
   _prevState: AuthActionState | null,
   formData: FormData,
 ): Promise<AuthActionState> {
+  const redirectTo = getSafeRedirectTarget(getFormValue(formData, "redirectTo"));
   const parsed = loginSchema.safeParse({
     email: getFormValue(formData, "email"),
     password: getFormValue(formData, "password"),
@@ -65,7 +74,7 @@ export async function loginAction(
     });
     revalidatePath("/", "layout");
 
-    return success({ redirectTo: "/dashboard" }, "Bienvenido de nuevo.");
+    return success({ redirectTo }, "Bienvenido de nuevo.");
   } catch (error) {
     return failure(
       getPrismaErrorMessage(
@@ -80,6 +89,7 @@ export async function registerAction(
   _prevState: AuthActionState | null,
   formData: FormData,
 ): Promise<AuthActionState> {
+  const redirectTo = getSafeRedirectTarget(getFormValue(formData, "redirectTo"));
   const parsed = registerSchema.safeParse({
     name: getFormValue(formData, "name"),
     email: getFormValue(formData, "email"),
@@ -130,7 +140,7 @@ export async function registerAction(
     });
     revalidatePath("/", "layout");
 
-    return success({ redirectTo: "/dashboard" }, "Cuenta creada correctamente.");
+    return success({ redirectTo }, "Cuenta creada correctamente.");
   } catch (error) {
     return failure(
       getPrismaErrorMessage(

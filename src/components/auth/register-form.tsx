@@ -21,7 +21,17 @@ function SubmitButton() {
   );
 }
 
-export function RegisterForm() {
+type RegisterFormProps = {
+  initialEmail?: string;
+  loginHref?: string;
+  redirectTo?: string;
+};
+
+export function RegisterForm({
+  initialEmail,
+  loginHref = "/login",
+  redirectTo,
+}: RegisterFormProps) {
   const router = useRouter();
   const [state, formAction] = useActionState<AuthActionState | null, FormData>(
     registerAction,
@@ -45,6 +55,10 @@ export function RegisterForm() {
 
   return (
     <form action={formAction} className="space-y-5">
+      {redirectTo ? (
+        <input type="hidden" name="redirectTo" value={redirectTo} />
+      ) : null}
+
       <div className="space-y-2">
         <Label htmlFor="name">Nombre</Label>
         <Input id="name" name="name" placeholder="Tu nombre" />
@@ -55,7 +69,13 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" placeholder="tu@email.com" />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="tu@email.com"
+          defaultValue={initialEmail}
+        />
         {state && !state.ok && state.fieldErrors?.email?.[0] ? (
           <p className="text-xs text-destructive">{state.fieldErrors.email[0]}</p>
         ) : null}
@@ -87,7 +107,7 @@ export function RegisterForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tenés cuenta?{" "}
-        <Link href="/login" className="font-semibold text-primary">
+        <Link href={loginHref} className="font-semibold text-primary">
           Iniciá sesión
         </Link>
       </p>

@@ -62,6 +62,10 @@ export const respondInvitationSchema = z.object({
   invitationId: z.string().cuid(),
 });
 
+export const respondInvitationByTokenSchema = z.object({
+  token: z.string().uuid(),
+});
+
 export const createLabelSchema = z.object({
   boardId: z.string().cuid(),
   name: z

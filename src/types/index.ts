@@ -51,11 +51,13 @@ export type BoardListView = {
   cards: CardSummaryView[];
 };
 
+export type InvitationStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED";
+
 export type BoardInvitationView = {
   id: string;
   email: string;
   role: BoardRole;
-  status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED";
+  status: InvitationStatus;
   invitedByName: string;
   expiresAt: string;
 };
@@ -115,6 +117,19 @@ export type PendingInvitation = {
   boardTheme: string;
   role: BoardRole;
   invitedByName: string;
+  expiresAt: string;
+};
+
+export type InvitationAccessData = {
+  id: string;
+  token: string;
+  email: string;
+  boardId: string;
+  boardName: string;
+  boardTheme: string;
+  role: BoardRole;
+  invitedByName: string;
+  status: InvitationStatus;
   expiresAt: string;
 };
 

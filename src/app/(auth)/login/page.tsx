@@ -13,13 +13,47 @@ export const metadata: Metadata = {
     "Ingresá a ProjectFlow para acceder a tus tableros, tareas y colaboración del equipo.",
 };
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{
+    email?: string | string[];
+    redirectTo?: string | string[];
+  }>;
+};
+
+function getSingleSearchParam(value?: string | string[]) {
+  return typeof value === "string" ? value : value?.[0];
+}
+
+function buildAuthHref(
+  pathname: string,
+  redirectTo?: string,
+  email?: string,
+) {
+  const params = new URLSearchParams();
+
+  if (redirectTo) {
+    params.set("redirectTo", redirectTo);
+  }
+
+  if (email) {
+    params.set("email", email);
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const email = getSingleSearchParam(params.email);
+  const redirectTo = getSingleSearchParam(params.redirectTo);
+
   return (
     <AuthShell
       title="Bienvenido de nuevo"
       subtitle="Ingresá para revisar tableros, fechas de entrega y trabajo compartido."
       asideLink={{
-        href: "/register",
+        href: buildAuthHref("/register", redirectTo, email),
         label: "Crear cuenta",
       }}
       footer={
@@ -30,7 +64,11 @@ export default function LoginPage() {
       }
       showDemoCredentials={showDemoCredentials}
     >
-      <LoginForm />
+      <LoginForm
+        initialEmail={email}
+        redirectTo={redirectTo}
+        registerHref={buildAuthHref("/register", redirectTo, email)}
+      />
     </AuthShell>
   );
 }
