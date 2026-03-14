@@ -61,7 +61,7 @@ export function AppHeader({ user }: AppHeaderProps) {
         });
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/92">
       <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-2xl border border-border bg-card/80 xl:hidden">

@@ -2,20 +2,142 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import {
+  addDays,
+  format,
+  isSameMonth,
+  parseISO,
+  startOfToday,
+} from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  ArrowRight,
+  CalendarClock,
+  CircleAlert,
+  Clock3,
+  Layers3,
+} from "lucide-react";
 import { DayPicker } from "react-day-picker";
 
+import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/empty-state";
-import { getBoardTheme, getPriorityLabel } from "@/lib/utils";
+import { getBoardTheme, getPriorityLabel, getStatusLabel, isCardOverdue } from "@/lib/utils";
 import type { SearchCardView } from "@/types";
 
 type CalendarViewProps = {
   cards: SearchCardView[];
 };
 
+type CalendarMetricProps = {
+  label: string;
+  value: string | number;
+  hint: string;
+};
+
+function toLocalCalendarDate(value: string) {
+  const date = parseISO(value);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function toLocalDateKey(value: Date | string) {
+  const date = typeof value === "string" ? parseISO(value) : value;
+  return format(date, "yyyy-MM-dd");
+}
+
+function compareCardDates(left: SearchCardView, right: SearchCardView) {
+  if (!left.dueDate || !right.dueDate) {
+    return 0;
+  }
+
+  return parseISO(left.dueDate).getTime() - parseISO(right.dueDate).getTime();
+}
+
+function CalendarMetric({ label, value, hint }: CalendarMetricProps) {
+  return (
+    <div className="rounded-[24px] border border-border bg-background/72 px-4 py-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-3 font-display text-3xl font-semibold">{value}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+function AgendaCard({ card }: { card: SearchCardView }) {
+  const theme = getBoardTheme(card.boardTheme);
+
+  return (
+    <Link
+      href={`/boards/${card.boardId}`}
+      prefetch
+      className="group block rounded-[26px] border border-border bg-background/72 p-4 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-background"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className={theme.chipClass}>{card.boardName}</Badge>
+            <Badge variant="secondary">{card.listName}</Badge>
+            <Badge variant="outline">{getPriorityLabel(card.priority)}</Badge>
+          </div>
+
+          <div>
+            <h3 className="font-display text-2xl font-semibold leading-tight">
+              {card.title}
+            </h3>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              {card.description || "Sin descripción"}
+            </p>
+          </div>
+        </div>
+
+        <span className="inline-flex rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-semibold text-muted-foreground">
+          {getStatusLabel(card.status)}
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Clock3 className="size-4" />
+          <span>
+            {card.dueDate
+              ? format(parseISO(card.dueDate), "dd 'de' MMMM", { locale: es })
+              : "Sin fecha"}
+          </span>
+        </div>
+
+        <span
+          className={
+            card.isOverdue
+              ? "font-semibold text-amber-700 dark:text-amber-300"
+              : "inline-flex items-center gap-1 text-primary"
+          }
+        >
+          {card.isOverdue ? "Vencida" : "Abrir tablero"}
+          {!card.isOverdue ? <ArrowRight className="size-4" /> : null}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 export function CalendarView({ cards }: CalendarViewProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const today = useMemo(() => startOfToday(), []);
+  const initialSelectedDate = useMemo(() => {
+    const nextUpcoming = cards
+      .filter((card) => card.dueDate && !card.isOverdue)
+      .sort(compareCardDates)[0];
+
+    if (nextUpcoming?.dueDate) {
+      return toLocalCalendarDate(nextUpcoming.dueDate);
+    }
+
+    const firstDueCard = cards.find((card) => card.dueDate);
+    return firstDueCard?.dueDate ? toLocalCalendarDate(firstDueCard.dueDate) : today;
+  }, [cards, today]);
+
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialSelectedDate);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, SearchCardView[]>();
@@ -25,103 +147,291 @@ export function CalendarView({ cards }: CalendarViewProps) {
         return;
       }
 
-      const key = card.dueDate.slice(0, 10);
+      const key = toLocalDateKey(card.dueDate);
       const current = map.get(key) ?? [];
       current.push(card);
+      current.sort(compareCardDates);
       map.set(key, current);
     });
 
     return map;
   }, [cards]);
 
-  const selectedKey = selectedDate?.toISOString().slice(0, 10);
+  const selectedKey = selectedDate ? toLocalDateKey(selectedDate) : undefined;
   const selectedCards = selectedKey ? eventsByDate.get(selectedKey) ?? [] : [];
+  const selectedLabel = selectedDate
+    ? format(selectedDate, "EEEE d 'de' MMMM", { locale: es })
+    : "Sin fecha seleccionada";
+  const selectedMonthCards = cards.filter((card) => {
+    if (!card.dueDate || !selectedDate) {
+      return false;
+    }
+
+    return isSameMonth(parseISO(card.dueDate), selectedDate);
+  });
+  const overdueCards = cards.filter((card) => card.isOverdue).length;
+  const dueSoonCards = cards.filter((card) => {
+    if (!card.dueDate) {
+      return false;
+    }
+
+    const dueDate = parseISO(card.dueDate);
+    return dueDate >= today && dueDate <= addDays(today, 7);
+  }).length;
+  const nextDates = Array.from(eventsByDate.entries())
+    .filter(([date]) => parseISO(date) >= today)
+    .sort(([left], [right]) => parseISO(left).getTime() - parseISO(right).getTime())
+    .slice(0, 5);
+  const dayModifiers = useMemo(
+    () => ({
+      hasEvents: Array.from(eventsByDate.keys()).map((value) => parseISO(value)),
+      hasOverdue: cards
+        .filter((card) => card.dueDate && isCardOverdue(card.dueDate, card.status))
+        .map((card) => parseISO(card.dueDate!)),
+    }),
+    [cards, eventsByDate],
+  );
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Calendario de vencimientos</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Elegí un día y revisá qué tarjetas vencen ahí.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <DayPicker
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            modifiers={{
-              hasEvents: Array.from(eventsByDate.keys()).map((value) => new Date(value)),
-            }}
-            modifiersClassNames={{
-              hasEvents: "bg-primary/15 text-primary font-semibold",
-            }}
-            classNames={{
-              months: "flex flex-col gap-4",
-              month: "space-y-4",
-              caption: "flex items-center justify-between",
-              caption_label: "font-display text-lg font-semibold",
-              nav: "flex items-center gap-2",
-              nav_button:
-                "flex size-9 items-center justify-center rounded-2xl border border-border bg-card/80",
-              table: "w-full border-collapse",
-              head_row: "grid grid-cols-7 gap-2",
-              row: "mt-2 grid grid-cols-7 gap-2",
-              head_cell:
-                "text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground",
-              cell: "text-center",
-              day: "flex h-11 w-full items-center justify-center rounded-2xl transition hover:bg-secondary",
-              day_selected:
-                "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-              day_today: "border border-primary/40",
-              outside: "text-muted-foreground/40",
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Entregas del día</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Vista rápida de todas las tarjetas con fecha elegida.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {selectedCards.length ? (
-            selectedCards.map((card) => {
-              const theme = getBoardTheme(card.boardTheme);
-
-              return (
-                <Link
-                  key={card.id}
-                  href={`/boards/${card.boardId}`}
-                  prefetch
-                  className="block rounded-[24px] border border-border bg-background/70 p-4 transition hover:-translate-y-0.5"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className={theme.chipClass}>{card.boardName}</Badge>
-                    <Badge variant="secondary">{card.listName}</Badge>
-                    <Badge variant="outline">{getPriorityLabel(card.priority)}</Badge>
-                  </div>
-                  <h3 className="mt-3 font-display text-2xl font-semibold">
-                    {card.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {card.description || "Sin descripción"}
+    <div className="space-y-6">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]">
+        <Card className="overflow-hidden">
+          <div className="border-b border-border bg-gradient-to-r from-teal-500/14 via-cyan-400/8 to-orange-400/14 px-6 py-6">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-3">
+                <Badge variant="secondary" className="w-fit">
+                  Ventana editorial
+                </Badge>
+                <div>
+                  <h2 className="font-display text-4xl font-semibold leading-tight">
+                    Calendario operativo de entregas
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                    Revisá el mes, detectá cuellos de botella y abrí rápidamente las
+                    tarjetas con vencimiento.
                   </p>
-                </Link>
-              );
-            })
-          ) : (
-            <EmptyState
-              title="Sin vencimientos ese día"
-              description="Elegí otra fecha o agregá más tarjetas con deadline."
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <CalendarMetric
+                  label="Mes visible"
+                  value={format(selectedDate ?? today, "MMMM", { locale: es })}
+                  hint={`${selectedMonthCards.length} tarjetas en agenda`}
+                />
+                <CalendarMetric
+                  label="Próximos 7 días"
+                  value={dueSoonCards}
+                  hint="Entregas con mayor presión"
+                />
+                <CalendarMetric
+                  label="Vencidas"
+                  value={overdueCards}
+                  hint="Requieren seguimiento inmediato"
+                />
+              </div>
+            </div>
+          </div>
+
+          <CardContent className="px-4 pb-5 pt-5 sm:px-6">
+            <DayPicker
+              mode="single"
+              showOutsideDays
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              modifiers={dayModifiers}
+              modifiersClassNames={{
+                selected: "bg-primary text-primary-foreground shadow-sm",
+                today: "ring-1 ring-primary/40",
+                hasEvents:
+                  "bg-primary/8 text-primary dark:bg-primary/15 dark:text-primary",
+                hasOverdue:
+                  "bg-amber-500/12 text-amber-900 dark:bg-amber-500/18 dark:text-amber-200",
+              }}
+              classNames={{
+                root: "w-full",
+                months: "w-full",
+                month: "space-y-5",
+                month_caption: "flex items-center justify-between gap-4 px-2",
+                caption_label: "font-display text-xl font-semibold capitalize",
+                nav: "flex items-center gap-2",
+                button_previous:
+                  "flex size-10 items-center justify-center rounded-2xl border border-border bg-background/80 transition hover:bg-secondary",
+                button_next:
+                  "flex size-10 items-center justify-center rounded-2xl border border-border bg-background/80 transition hover:bg-secondary",
+                month_grid: "w-full border-separate border-spacing-y-2",
+                weekdays: "grid grid-cols-7 gap-2 px-1",
+                weekday:
+                  "text-center text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground",
+                week: "grid grid-cols-7 gap-2",
+                day: "flex justify-center",
+                day_button:
+                  "flex size-12 items-center justify-center rounded-2xl text-sm font-medium transition hover:bg-secondary hover:text-foreground",
+                outside: "text-muted-foreground/35",
+                disabled: "opacity-35",
+                hidden: "invisible",
+              }}
             />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Fecha seleccionada</CardTitle>
+                  <p className="mt-2 text-sm capitalize text-muted-foreground">
+                    {selectedLabel}
+                  </p>
+                </div>
+                <div className="flex size-12 items-center justify-center rounded-[22px] bg-primary/10 text-primary">
+                  <CalendarClock className="size-5" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <CalendarMetric
+                label="Entregas"
+                value={selectedCards.length}
+                hint="Tarjetas asignadas a este día"
+              />
+              <CalendarMetric
+                label="Prioridad alta"
+                value={selectedCards.filter((card) => card.priority === "HIGH").length}
+                hint="Tareas que merecen foco inmediato"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Próximas fechas</CardTitle>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Un paneo rápido de los siguientes hitos del tablero.
+                  </p>
+                </div>
+                <div className="flex size-12 items-center justify-center rounded-[22px] bg-secondary text-secondary-foreground">
+                  <Layers3 className="size-5" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {nextDates.length ? (
+                nextDates.map(([dateKey, items]) => (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => setSelectedDate(parseISO(dateKey))}
+                    className="flex w-full items-start justify-between gap-4 rounded-[24px] border border-border bg-background/72 px-4 py-4 text-left transition hover:border-primary/30 hover:bg-background"
+                  >
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                        {format(parseISO(dateKey), "EEE", { locale: es })}
+                      </p>
+                      <p className="mt-1 font-display text-2xl font-semibold">
+                        {format(parseISO(dateKey), "d MMM", { locale: es })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{items.length} tarjetas</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {items[0]?.boardName}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <EmptyState
+                  className="px-4 py-10"
+                  title="Sin próximas fechas"
+                  description="Cuando haya deadlines futuros van a aparecer en este panel."
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle>Agenda del día</CardTitle>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Tarjetas agrupadas por la fecha que elegiste en el calendario.
+                </p>
+              </div>
+              <div className="flex size-12 items-center justify-center rounded-[22px] bg-secondary text-secondary-foreground">
+                <Clock3 className="size-5" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {selectedCards.length ? (
+              selectedCards.map((card) => <AgendaCard key={card.id} card={card} />)
+            ) : (
+              <EmptyState
+                title="Sin vencimientos ese día"
+                description="Elegí otra fecha o asigná un deadline nuevo desde algún tablero."
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle>Atención prioritaria</CardTitle>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Fechas vencidas o con más presión operativa.
+                </p>
+              </div>
+              <div className="flex size-12 items-center justify-center rounded-[22px] bg-amber-500/14 text-amber-700 dark:text-amber-300">
+                <CircleAlert className="size-5" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {cards.filter((card) => card.isOverdue || card.priority === "HIGH").length ? (
+              cards
+                .filter((card) => card.isOverdue || card.priority === "HIGH")
+                .sort(compareCardDates)
+                .slice(0, 6)
+                .map((card) => (
+                  <Link
+                    key={card.id}
+                    href={`/boards/${card.boardId}`}
+                    prefetch
+                    className="block rounded-[24px] border border-border bg-background/72 p-4 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-background"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{card.boardName}</Badge>
+                      <Badge variant="outline">{getPriorityLabel(card.priority)}</Badge>
+                    </div>
+                    <h3 className="mt-3 font-semibold">{card.title}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {card.dueDate
+                        ? format(parseISO(card.dueDate), "dd 'de' MMMM", { locale: es })
+                        : "Sin fecha"}{" "}
+                      · {getStatusLabel(card.status)}
+                    </p>
+                  </Link>
+                ))
+            ) : (
+              <EmptyState
+                className="px-4 py-10"
+                title="Sin alertas activas"
+                description="El calendario no detectó tareas vencidas ni prioridades altas."
+              />
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

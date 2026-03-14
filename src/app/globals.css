@@ -107,9 +107,20 @@ h4 {
 }
 
 .glass-panel {
-  background: color-mix(in srgb, var(--card) 88%, transparent);
-  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--card) 94%, transparent);
   box-shadow: var(--shadow-soft);
+}
+
+.glass-floating {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-floating {
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
 }
 
 .kanban-scrollbar {

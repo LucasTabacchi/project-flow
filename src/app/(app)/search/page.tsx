@@ -2,7 +2,8 @@ import { Suspense } from "react";
 
 import { requireUser } from "@/lib/auth/session";
 import { getSearchCards, getSearchContext } from "@/lib/data/dashboard";
-import { SearchView } from "@/components/search/search-view";
+import { SearchFilters } from "@/components/search/search-filters";
+import { SearchResults } from "@/components/search/search-results";
 
 type SearchPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -76,7 +77,26 @@ async function SearchPageContent({
     getSearchContext(userId),
   ]);
 
-  return <SearchView results={results} context={context} initialFilters={filters} />;
+  const filtersKey = [
+    filters.q,
+    filters.boardId,
+    filters.assigneeId,
+    filters.labelId,
+    filters.priority,
+    filters.status,
+    filters.overdue,
+  ].join(":");
+
+  return (
+    <div className="space-y-6">
+      <SearchFilters
+        key={filtersKey}
+        context={context}
+        initialFilters={filters}
+      />
+      <SearchResults results={results} />
+    </div>
+  );
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {

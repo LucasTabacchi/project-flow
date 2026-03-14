@@ -42,7 +42,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuPrimitive.SubContent
       className={cn(
-        "glass-panel z-50 min-w-[12rem] rounded-2xl border border-border p-1 text-foreground shadow-xl",
+        "glass-floating z-50 min-w-[12rem] rounded-2xl border border-border p-1 text-foreground shadow-xl",
         className,
       )}
       {...props}
@@ -60,7 +60,7 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "glass-panel z-50 min-w-[12rem] rounded-2xl border border-border p-1 text-foreground shadow-xl",
+          "glass-floating z-50 min-w-[12rem] rounded-2xl border border-border p-1 text-foreground shadow-xl",
           className,
         )}
         {...props}

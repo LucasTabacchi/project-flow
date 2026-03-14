@@ -68,7 +68,7 @@ function SelectContent({
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         className={cn(
-          "glass-panel relative z-50 max-h-80 min-w-[8rem] overflow-hidden rounded-2xl border border-border text-foreground shadow-xl",
+          "glass-floating relative z-50 max-h-80 min-w-[8rem] overflow-hidden rounded-2xl border border-border text-foreground shadow-xl",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,

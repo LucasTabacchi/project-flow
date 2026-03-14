@@ -33,7 +33,7 @@ function DialogOverlay({
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
-      className={cn("fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm", className)}
+      className={cn("fixed inset-0 z-50 bg-slate-950/55", className)}
       {...props}
     />
   );
@@ -49,7 +49,7 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          "glass-panel animate-enter fixed top-1/2 left-1/2 z-50 grid w-[min(92vw,920px)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[32px] border border-border p-6 duration-200",
+          "glass-floating animate-enter fixed top-1/2 left-1/2 z-50 grid w-[min(92vw,920px)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[32px] border border-border p-6 duration-200",
           className,
         )}
         {...props}

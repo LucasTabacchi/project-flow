@@ -3,24 +3,26 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const APP_ROUTES = ["/dashboard", "/search", "/calendar", "/profile"];
-
 type RoutePrefetchProps = {
+  routes?: string[];
   boardIds?: string[];
 };
 
-export function RoutePrefetch({ boardIds = [] }: RoutePrefetchProps) {
+export function RoutePrefetch({
+  routes = [],
+  boardIds = [],
+}: RoutePrefetchProps) {
   const router = useRouter();
 
   useEffect(() => {
-    APP_ROUTES.forEach((route) => {
+    routes.forEach((route) => {
       router.prefetch(route);
     });
 
     boardIds.forEach((boardId) => {
       router.prefetch(`/boards/${boardId}`);
     });
-  }, [boardIds, router]);
+  }, [boardIds, router, routes]);
 
   return null;
 }
