@@ -1,22 +1,17 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { addDays } from "date-fns";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { SESSION_DURATION_DAYS } from "@/lib/constants";
+import { prisma } from "@/lib/db";
 
 const SESSION_COOKIE_NAME =
   process.env.SESSION_COOKIE_NAME ?? "projectflow_session";
-
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ??
-  process.env.AUTH_SECRET ??
-  process.env.NEXTAUTH_SECRET ??
-  process.env.DATABASE_URL ??
-  "projectflow-development-session-secret";
+const SESSION_TOKEN_BYTES = 32;
 
 type SessionUser = {
   id: string;
@@ -24,11 +19,6 @@ type SessionUser = {
   email: string;
   avatarUrl: string | null;
   bio: string | null;
-};
-
-type SessionPayload = {
-  exp: number;
-  user: SessionUser;
 };
 
 function normalizeUser(user: SessionUser) {
@@ -41,97 +31,89 @@ function normalizeUser(user: SessionUser) {
   };
 }
 
-function signValue(value: string) {
-  return createHmac("sha256", SESSION_SECRET).update(value).digest("base64url");
+function hashSessionToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
-function encodeSession(payload: SessionPayload) {
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signature = signValue(encodedPayload);
-
-  return `${encodedPayload}.${signature}`;
+function createSessionToken() {
+  return randomBytes(SESSION_TOKEN_BYTES).toString("base64url");
 }
 
-function decodeSession(token: string): SessionPayload | null {
-  const [encodedPayload, signature] = token.split(".");
-
-  if (!encodedPayload || !signature) {
-    return null;
-  }
-
-  const expectedSignature = Buffer.from(signValue(encodedPayload));
-  const actualSignature = Buffer.from(signature);
-
-  if (
-    expectedSignature.length !== actualSignature.length ||
-    !timingSafeEqual(expectedSignature, actualSignature)
-  ) {
-    return null;
-  }
-
-  try {
-    const payload = JSON.parse(
-      Buffer.from(encodedPayload, "base64url").toString("utf8"),
-    ) as Partial<SessionPayload>;
-
-    if (
-      typeof payload.exp !== "number" ||
-      !payload.user ||
-      typeof payload.user.id !== "string" ||
-      typeof payload.user.name !== "string" ||
-      typeof payload.user.email !== "string"
-    ) {
-      return null;
-    }
-
-    return {
-      exp: payload.exp,
-      user: normalizeUser({
-        id: payload.user.id,
-        name: payload.user.name,
-        email: payload.user.email,
-        avatarUrl: payload.user.avatarUrl ?? null,
-        bio: payload.user.bio ?? null,
-      }),
-    };
-  } catch {
-    return null;
-  }
+async function getSessionTokenFromCookie() {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null;
 }
 
-async function writeSessionCookie(payload: SessionPayload) {
+async function deleteSessionRecord(token: string | null) {
+  if (!token) {
+    return;
+  }
+
+  await prisma.session.deleteMany({
+    where: {
+      tokenHash: hashSessionToken(token),
+    },
+  });
+}
+
+async function writeSessionCookie(token: string, expiresAt: Date) {
   const cookieStore = await cookies();
 
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(payload), {
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    expires: new Date(payload.exp),
+    expires: expiresAt,
   });
 }
 
 export const getCurrentSession = cache(async () => {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const token = await getSessionTokenFromCookie();
 
   if (!token) {
     return null;
   }
 
-  const payload = decodeSession(token);
+  const session = await prisma.session.findUnique({
+    where: {
+      tokenHash: hashSessionToken(token),
+    },
+    select: {
+      id: true,
+      expiresAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+          bio: true,
+        },
+      },
+    },
+  });
 
-  if (!payload) {
+  if (!session) {
     return null;
   }
 
-  if (payload.exp < Date.now()) {
+  if (session.expiresAt <= new Date()) {
+    await prisma.session
+      .delete({
+        where: {
+          id: session.id,
+        },
+      })
+      .catch(() => undefined);
+
     return null;
   }
 
   return {
-    expiresAt: new Date(payload.exp),
-    user: payload.user,
+    id: session.id,
+    expiresAt: session.expiresAt,
+    user: normalizeUser(session.user),
   };
 });
 
@@ -152,27 +134,35 @@ export async function requireUser() {
 
 export async function createSession(user: SessionUser) {
   const expiresAt = addDays(new Date(), SESSION_DURATION_DAYS);
+  const token = createSessionToken();
+  const currentToken = await getSessionTokenFromCookie();
 
-  await writeSessionCookie({
-    exp: expiresAt.getTime(),
-    user: normalizeUser(user),
-  });
-}
+  await prisma.$transaction([
+    ...(currentToken
+      ? [
+          prisma.session.deleteMany({
+            where: {
+              tokenHash: hashSessionToken(currentToken),
+            },
+          }),
+        ]
+      : []),
+    prisma.session.create({
+      data: {
+        tokenHash: hashSessionToken(token),
+        userId: user.id,
+        expiresAt,
+      },
+    }),
+  ]);
 
-export async function updateSessionUser(user: SessionUser) {
-  const currentSession = await getCurrentSession();
-
-  if (!currentSession) {
-    return;
-  }
-
-  await writeSessionCookie({
-    exp: currentSession.expiresAt.getTime(),
-    user: normalizeUser(user),
-  });
+  await writeSessionCookie(token, expiresAt);
 }
 
 export async function destroySession() {
+  const token = await getSessionTokenFromCookie();
   const cookieStore = await cookies();
+
+  await deleteSessionRecord(token);
   cookieStore.delete(SESSION_COOKIE_NAME);
 }

@@ -8,7 +8,7 @@ import {
   success,
   type ActionResult,
 } from "@/lib/action-result";
-import { requireUser, updateSessionUser } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { updateProfileSchema } from "@/lib/validators/profile";
 
@@ -24,7 +24,7 @@ export async function updateProfileAction(input: unknown): Promise<ActionResult>
     return failure("Necesitás iniciar sesión.");
   }
 
-  const updatedUser = await prisma.user.update({
+  await prisma.user.update({
     where: {
       id: user.id,
     },
@@ -33,16 +33,7 @@ export async function updateProfileAction(input: unknown): Promise<ActionResult>
       avatarUrl: parsed.data.avatarUrl || null,
       bio: parsed.data.bio || null,
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      avatarUrl: true,
-      bio: true,
-    },
   });
-
-  await updateSessionUser(updatedUser);
 
   revalidatePath("/profile");
   revalidatePath("/", "layout");

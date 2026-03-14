@@ -4,7 +4,7 @@ App web de gestion de proyectos tipo Trello, construida con `Next.js 16`, `React
 
 ## Incluye
 
-- Autenticacion segura con email y contrasena, sesiones HTTP-only y perfil de usuario
+- Autenticacion segura con email y contrasena, sesiones HTTP-only persistidas y perfil de usuario
 - Dashboard con resumen de tableros, proximas entregas e invitaciones pendientes
 - Tableros con listas y tarjetas movibles por drag and drop
 - Detalle de tarjeta con descripcion, prioridad, estado, fecha, checklist, comentarios y adjuntos por URL
@@ -57,6 +57,7 @@ DATABASE_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler
 # Supavisor session pooler (puerto 5432)
 DIRECT_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres"
 
+# Opcional: cambia el nombre por defecto de la cookie de sesion
 SESSION_COOKIE_NAME="projectflow_session"
 ```
 
@@ -130,6 +131,7 @@ supabase/
 
 - Prisma usa `DATABASE_URL` para el runtime y `DIRECT_URL` para operaciones CLI que requieren una conexion dedicada.
 - El datasource ya esta configurado con `directUrl` en [`prisma/schema.prisma`](C:\Users\lucas\Desktop\projectflow\prisma\schema.prisma).
+- Las sesiones usan el modelo `Session` de Prisma y una cookie opaca HTTP-only; el servidor resuelve siempre el usuario actual desde base de datos.
 - El acceso a tableros siempre se valida del lado del servidor.
 - Las mutaciones usan `Zod` y revalidan rutas afectadas.
 - El board usa una frontera cliente acotada para `dnd-kit`; el resto de paginas se apoya en Server Components.
@@ -142,7 +144,7 @@ Definí estas variables en Vercel:
 
 - `DATABASE_URL`
 - `DIRECT_URL`
-- `SESSION_COOKIE_NAME`
+- `SESSION_COOKIE_NAME` opcional si querés cambiar el nombre por defecto de la cookie
 
 Luego hacé deploy normal. El build ya fue validado con `next build`.
 
