@@ -16,16 +16,16 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return (
     <AuthShell
-      title="Entrar a ProjectFlow"
-      subtitle="Accedé a tus tableros, tareas y colaboración del equipo."
+      title="Bienvenido de nuevo"
+      subtitle="Ingresá para revisar tableros, fechas de entrega y trabajo compartido."
       asideLink={{
         href: "/register",
-        label: "Crear una cuenta nueva",
+        label: "Crear cuenta",
       }}
       footer={
         <>
-          Iniciá sesión con tu cuenta o con el email donde recibiste una
-          invitación del tablero.
+          Si recibiste una invitación por email, iniciá sesión con esa misma
+          dirección para sumarte a los tableros compartidos.
         </>
       }
       showDemoCredentials={showDemoCredentials}

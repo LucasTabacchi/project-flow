@@ -65,10 +65,10 @@ export function LoginForm() {
             <ShieldCheck className="size-4" />
           </div>
           <div className="space-y-1">
-            <p className="font-medium text-foreground">Acceso protegido</p>
+            <p className="font-medium text-foreground">Acceso a tu espacio de trabajo</p>
             <p>
-              Usá el email con el que creaste tu cuenta o recibiste una
-              invitación al tablero.
+              Ingresá con el email de tu cuenta o con la dirección donde
+              recibiste una invitación del equipo.
             </p>
           </div>
         </div>
@@ -89,7 +89,7 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
-          placeholder="tu@empresa.com"
+          placeholder="nombre@empresa.com"
           autoComplete="email"
           autoCapitalize="none"
           spellCheck={false}
@@ -146,9 +146,9 @@ export function LoginForm() {
       <SubmitButton />
 
       <p className="text-center text-sm text-muted-foreground">
-        ¿No tenés cuenta?{" "}
+        ¿Todavía no tenés cuenta?{" "}
         <Link href="/register" className="font-semibold text-primary">
-          Registrate
+          Crear cuenta
         </Link>
       </p>
     </form>

@@ -12,16 +12,16 @@ export const metadata: Metadata = {
 export default function RegisterPage() {
   return (
     <AuthShell
-      title="Crear cuenta"
-      subtitle="Empezá a organizar proyectos, listas y tarjetas en minutos."
+      title="Crear tu cuenta"
+      subtitle="Activá tu espacio y empezá a organizar proyectos con claridad."
       asideLink={{
         href: "/login",
-        label: "Ya tenés cuenta, iniciá sesión",
+        label: "Ya tengo cuenta",
       }}
       footer={
         <>
-          Las invitaciones pendientes por email se vinculan automáticamente al
-          crear la cuenta.
+          Las invitaciones pendientes por email se vinculan automáticamente
+          cuando terminás el registro.
         </>
       }
     >

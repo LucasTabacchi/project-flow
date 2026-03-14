@@ -27,17 +27,17 @@ type AuthShellProps = {
 const highlights = [
   {
     title: "Tableros colaborativos",
-    description: "Listas, tarjetas y drag and drop con foco en claridad visual.",
+    description: "Organizá listas, tarjetas y responsables con una vista clara y rápida.",
     icon: KanbanSquare,
   },
   {
-    title: "Seguimiento real",
-    description: "Filtros, calendario y métricas para detectar riesgo y avance.",
+    title: "Visión operativa",
+    description: "Calendario, filtros y métricas para anticipar carga, riesgo y avance.",
     icon: ChartColumn,
   },
   {
-    title: "Roles por tablero",
-    description: "Propietario, editor y lector con permisos consistentes.",
+    title: "Permisos por equipo",
+    description: "Cada tablero respeta roles y acceso compartido sin perder contexto.",
     icon: Users,
   },
 ];
@@ -56,14 +56,14 @@ export function AuthShell({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.22),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(249,115,22,0.18),transparent_26%)]" />
         <div className="relative flex h-full flex-col justify-between">
           <div className="space-y-8">
-            <Badge>App lista para producción</Badge>
+            <Badge>Gestión de proyectos</Badge>
             <div className="space-y-4">
               <h1 className="max-w-xl text-balance font-display text-5xl font-semibold leading-tight">
-                Kanban moderno para equipos que necesitan foco, ritmo y contexto.
+                Un espacio claro para coordinar entregas, prioridades y equipo.
               </h1>
               <p className="max-w-2xl text-lg text-muted-foreground">
-                ProjectFlow combina la claridad de Trello con una interfaz más
-                editorial, filtros útiles, calendario y permisos por rol.
+                ProjectFlow reúne tableros, agenda operativa y colaboración en una
+                interfaz pensada para trabajar con menos fricción y más contexto.
               </p>
             </div>
 
@@ -94,12 +94,12 @@ export function AuthShell({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">
-                  {showDemoCredentials ? "Entorno demo" : "Acceso seguro"}
+                  {showDemoCredentials ? "Accesos de prueba" : "Ingreso seguro"}
                 </p>
                 <h3 className="mt-2 font-display text-2xl font-semibold">
                   {showDemoCredentials
-                    ? "Entrá con los usuarios seed"
-                    : "Sesiones protegidas y permisos por tablero"}
+                    ? "Probá el producto con distintos perfiles"
+                    : "Entrá a tus tableros con el acceso correcto"}
                 </h3>
               </div>
               <div className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
@@ -114,18 +114,18 @@ export function AuthShell({
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {showDemoCredentials ? (
                 <>
-                  <div className="rounded-[24px] border border-border bg-background/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Product owner
-                    </p>
-                    <p className="mt-2 font-semibold">sofia@projectflow.dev</p>
-                    <p className="text-sm text-muted-foreground">Demo1234!</p>
-                  </div>
-                  <div className="rounded-[24px] border border-border bg-background/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Engineering
-                    </p>
-                    <p className="mt-2 font-semibold">diego@projectflow.dev</p>
+                <div className="rounded-[24px] border border-border bg-background/70 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Producto
+                  </p>
+                  <p className="mt-2 font-semibold">sofia@projectflow.dev</p>
+                  <p className="text-sm text-muted-foreground">Demo1234!</p>
+                </div>
+                <div className="rounded-[24px] border border-border bg-background/70 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Operaciones
+                  </p>
+                    <p className="mt-2 font-semibold">lucia@projectflow.dev</p>
                     <p className="text-sm text-muted-foreground">Demo1234!</p>
                   </div>
                 </>
@@ -133,20 +133,20 @@ export function AuthShell({
                 <>
                   <div className="rounded-[24px] border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Sesiones
+                      Privacidad
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      La autenticación usa cookies HTTP-only y validaciones del
-                      lado servidor antes de cada mutación.
+                      Tu cuenta accede sólo a los tableros donde participás o que
+                      fueron compartidos con tu email.
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Acceso
+                      Continuidad
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Cada usuario ve sus tableros o los que fueron compartidos
-                      con su email y rol correspondiente.
+                      Seguí tareas, fechas y responsables desde el mismo lugar,
+                      con permisos consistentes por tablero.
                     </p>
                   </div>
                 </>
@@ -168,6 +168,17 @@ export function AuthShell({
 
       <section className="flex items-center justify-center px-4 py-10 sm:px-8">
         <div className="w-full max-w-xl">
+          <div className="mb-8 flex items-center justify-center gap-3 lg:justify-start">
+            <div className="flex size-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-teal-500 via-cyan-400 to-orange-400 text-white shadow-lg">
+              <KanbanSquare className="size-6" />
+            </div>
+            <div>
+              <div className="font-display text-xl font-semibold">ProjectFlow</div>
+              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                Workspace de proyectos
+              </p>
+            </div>
+          </div>
           <div className="mb-8 space-y-2 text-center lg:text-left">
             <h2 className="font-display text-4xl font-semibold">{title}</h2>
             <p className="text-muted-foreground">{subtitle}</p>
