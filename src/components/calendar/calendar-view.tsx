@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
-  addDays,
   format,
   isSameMonth,
   parseISO,
+  startOfMonth,
   startOfToday,
 } from "date-fns";
 import { es } from "date-fns/locale";
@@ -138,6 +138,9 @@ export function CalendarView({ cards }: CalendarViewProps) {
   }, [cards, today]);
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialSelectedDate);
+  const [visibleMonth, setVisibleMonth] = useState<Date>(
+    startOfMonth(initialSelectedDate),
+  );
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, SearchCardView[]>();
@@ -162,22 +165,19 @@ export function CalendarView({ cards }: CalendarViewProps) {
   const selectedLabel = selectedDate
     ? format(selectedDate, "EEEE d 'de' MMMM", { locale: es })
     : "Sin fecha seleccionada";
-  const selectedMonthCards = cards.filter((card) => {
-    if (!card.dueDate || !selectedDate) {
-      return false;
-    }
-
-    return isSameMonth(parseISO(card.dueDate), selectedDate);
-  });
-  const overdueCards = cards.filter((card) => card.isOverdue).length;
-  const dueSoonCards = cards.filter((card) => {
+  const visibleMonthCards = cards.filter((card) => {
     if (!card.dueDate) {
       return false;
     }
 
-    const dueDate = parseISO(card.dueDate);
-    return dueDate >= today && dueDate <= addDays(today, 7);
-  }).length;
+    return isSameMonth(toLocalCalendarDate(card.dueDate), visibleMonth);
+  });
+  const visibleMonthHighPriorityCards = visibleMonthCards.filter(
+    (card) => card.priority === "HIGH",
+  ).length;
+  const visibleMonthOverdueCards = visibleMonthCards.filter(
+    (card) => card.isOverdue,
+  ).length;
   const nextDates = Array.from(eventsByDate.entries())
     .filter(([date]) => parseISO(date) >= today)
     .sort(([left], [right]) => parseISO(left).getTime() - parseISO(right).getTime())
@@ -191,6 +191,19 @@ export function CalendarView({ cards }: CalendarViewProps) {
     }),
     [cards, eventsByDate],
   );
+
+  function handleDateSelection(date: Date | undefined) {
+    if (!date) {
+      return;
+    }
+
+    setSelectedDate(date);
+    setVisibleMonth(startOfMonth(date));
+  }
+
+  function handleMonthChange(date: Date) {
+    setVisibleMonth(startOfMonth(date));
+  }
 
   return (
     <div className="space-y-6">
@@ -216,18 +229,18 @@ export function CalendarView({ cards }: CalendarViewProps) {
               <div className="grid gap-3 sm:grid-cols-3">
                 <CalendarMetric
                   label="Mes visible"
-                  value={format(selectedDate ?? today, "MMMM", { locale: es })}
-                  hint={`${selectedMonthCards.length} tarjetas en agenda`}
+                  value={format(visibleMonth, "MMMM", { locale: es })}
+                  hint={`${visibleMonthCards.length} tarjetas en agenda`}
                 />
                 <CalendarMetric
-                  label="Próximos 7 días"
-                  value={dueSoonCards}
-                  hint="Entregas con mayor presión"
+                  label="Alta prioridad"
+                  value={visibleMonthHighPriorityCards}
+                  hint="Tarjetas críticas dentro de este mes"
                 />
                 <CalendarMetric
-                  label="Vencidas"
-                  value={overdueCards}
-                  hint="Requieren seguimiento inmediato"
+                  label="Vencidas del mes"
+                  value={visibleMonthOverdueCards}
+                  hint="Requieren seguimiento en el mes visible"
                 />
               </div>
             </div>
@@ -237,8 +250,10 @@ export function CalendarView({ cards }: CalendarViewProps) {
             <DayPicker
               mode="single"
               showOutsideDays
+              month={visibleMonth}
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={handleDateSelection}
+              onMonthChange={handleMonthChange}
               modifiers={dayModifiers}
               modifiersClassNames={{
                 selected: "bg-primary text-primary-foreground shadow-sm",
@@ -324,7 +339,7 @@ export function CalendarView({ cards }: CalendarViewProps) {
                   <button
                     key={dateKey}
                     type="button"
-                    onClick={() => setSelectedDate(parseISO(dateKey))}
+                    onClick={() => handleDateSelection(parseISO(dateKey))}
                     className="flex w-full items-start justify-between gap-4 rounded-[24px] border border-border bg-background/72 px-4 py-4 text-left transition hover:border-primary/30 hover:bg-background"
                   >
                     <div>
