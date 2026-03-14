@@ -226,7 +226,7 @@ export function SearchView({
             const theme = getBoardTheme(card.boardTheme);
 
             return (
-              <Link key={card.id} href={`/boards/${card.boardId}`}>
+              <Link key={card.id} href={`/boards/${card.boardId}`} prefetch>
                 <Card className="h-full transition hover:-translate-y-0.5">
                   <CardContent className="space-y-4 pt-6">
                     <div className="flex flex-wrap items-center gap-2">

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarClock } from "lucide-react";
 
@@ -12,28 +13,57 @@ import { requireUser } from "@/lib/auth/session";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { formatDueDate, getBoardTheme, getPriorityLabel } from "@/lib/utils";
 
-export default async function DashboardPage() {
-  const user = await requireUser();
-  const data = await getDashboardData(user.id, user.email);
+function DashboardSectionsFallback() {
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="rounded-[28px] border border-border bg-card/70 p-6"
+          >
+            <div className="h-4 w-28 animate-pulse rounded bg-secondary" />
+            <div className="mt-4 h-10 w-20 animate-pulse rounded bg-secondary" />
+            <div className="mt-6 h-4 w-full animate-pulse rounded bg-secondary/70" />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-6 2xl:grid-cols-[1.5fr_0.9fr]">
+        {Array.from({ length: 2 }).map((_, columnIndex) => (
+          <div
+            key={columnIndex}
+            className="rounded-[32px] border border-border bg-card/70 p-6"
+          >
+            <div className="h-6 w-40 animate-pulse rounded bg-secondary" />
+            <div className="mt-3 h-4 w-full max-w-md animate-pulse rounded bg-secondary/70" />
+            <div className="mt-6 space-y-4">
+              {Array.from({ length: 3 }).map((__, itemIndex) => (
+                <div
+                  key={itemIndex}
+                  className="rounded-[24px] border border-border bg-background/60 p-4"
+                >
+                  <div className="h-5 w-2/3 animate-pulse rounded bg-secondary" />
+                  <div className="mt-3 h-4 w-1/2 animate-pulse rounded bg-secondary/70" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+async function DashboardSections({
+  dataPromise,
+}: {
+  dataPromise: ReturnType<typeof getDashboardData>;
+}) {
+  const data = await dataPromise;
 
   return (
-    <div className="space-y-6">
-      <section className="glass-panel flex flex-col gap-5 rounded-[32px] border border-border px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-3">
-          <Badge>Hola, {user.name.split(" ")[0]}</Badge>
-          <div>
-            <h2 className="font-display text-4xl font-semibold">
-              Todo tu flujo de trabajo en un solo panel.
-            </h2>
-            <p className="mt-2 max-w-2xl text-muted-foreground">
-              Revisá progreso, invitaciones, próximas fechas y entrá directo al
-              tablero que necesites.
-            </p>
-          </div>
-        </div>
-        <CreateBoardDialog />
-      </section>
-
+    <>
       <DashboardStats stats={data.stats} />
       <InvitationPanel invitations={data.pendingInvitations} />
 
@@ -82,6 +112,7 @@ export default async function DashboardPage() {
                   <Link
                     key={card.id}
                     href={`/boards/${card.boardId}`}
+                    prefetch
                     className="block rounded-[24px] border border-border bg-background/70 p-4 transition hover:-translate-y-0.5"
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -117,6 +148,35 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </section>
+    </>
+  );
+}
+
+export default async function DashboardPage() {
+  const user = await requireUser();
+  const dataPromise = getDashboardData(user.id, user.email);
+
+  return (
+    <div className="space-y-6">
+      <section className="glass-panel flex flex-col gap-5 rounded-[32px] border border-border px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-3">
+          <Badge>Hola, {user.name.split(" ")[0]}</Badge>
+          <div>
+            <h2 className="font-display text-4xl font-semibold">
+              Todo tu flujo de trabajo en un solo panel.
+            </h2>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Revisá progreso, invitaciones, próximas fechas y entrá directo al
+              tablero que necesites.
+            </p>
+          </div>
+        </div>
+        <CreateBoardDialog />
+      </section>
+
+      <Suspense fallback={<DashboardSectionsFallback />}>
+        <DashboardSections dataPromise={dataPromise} />
+      </Suspense>
     </div>
   );
 }

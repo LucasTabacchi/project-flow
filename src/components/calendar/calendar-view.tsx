@@ -97,6 +97,7 @@ export function CalendarView({ cards }: CalendarViewProps) {
                 <Link
                   key={card.id}
                   href={`/boards/${card.boardId}`}
+                  prefetch
                   className="block rounded-[24px] border border-border bg-background/70 p-4 transition hover:-translate-y-0.5"
                 >
                   <div className="flex flex-wrap items-center gap-2">

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { NavLink } from "@/components/layout/nav-link";
+import { RoutePrefetch } from "@/components/layout/route-prefetch";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/ui/avatar";
 import { getUserSidebarBoards } from "@/lib/data/boards";
@@ -55,6 +56,8 @@ async function SidebarBoards({ userId }: { userId: string }) {
 
   return (
     <>
+      <RoutePrefetch boardIds={boards.map((board) => board.id)} />
+
       <div className="mt-8 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Tableros activos</p>
@@ -74,6 +77,7 @@ async function SidebarBoards({ userId }: { userId: string }) {
               <Link
                 key={board.id}
                 href={`/boards/${board.id}`}
+                prefetch
                 className="glass-panel flex items-start gap-3 rounded-[24px] border border-border p-4 transition hover:-translate-y-0.5"
               >
                 <div

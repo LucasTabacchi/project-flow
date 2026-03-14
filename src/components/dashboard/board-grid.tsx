@@ -17,7 +17,7 @@ export function BoardGrid({ boards }: BoardGridProps) {
         const theme = getBoardTheme(board.theme);
 
         return (
-          <Link key={board.id} href={`/boards/${board.id}`}>
+          <Link key={board.id} href={`/boards/${board.id}`} prefetch>
             <Card className="h-full transition hover:-translate-y-1">
               <CardHeader>
                 <div
