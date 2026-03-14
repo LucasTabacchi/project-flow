@@ -67,8 +67,8 @@ async function DashboardSections({
       <DashboardStats stats={data.stats} />
       <InvitationPanel invitations={data.pendingInvitations} />
 
-      <section className="grid gap-6 2xl:grid-cols-[1.5fr_0.9fr]">
-        <div className="space-y-4">
+      <section className="grid min-w-0 gap-6 2xl:grid-cols-[1.5fr_0.9fr]">
+        <div className="min-w-0 space-y-4">
           <div>
             <div className="text-left">
               <h3 className="font-display text-2xl font-semibold">Tus tableros</h3>
@@ -89,7 +89,7 @@ async function DashboardSections({
           )}
         </div>
 
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <div className="flex flex-col items-start gap-4 text-left sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -103,7 +103,7 @@ async function DashboardSections({
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="min-w-0 space-y-3">
             {data.upcomingCards.length ? (
               data.upcomingCards.map((card) => {
                 const theme = getBoardTheme(card.boardTheme);
@@ -113,16 +113,16 @@ async function DashboardSections({
                     key={card.id}
                     href={`/boards/${card.boardId}`}
                     prefetch
-                    className="block rounded-[24px] border border-border bg-background/70 p-4 transition hover:-translate-y-0.5"
+                    className="block min-w-0 rounded-[24px] border border-border bg-background/70 p-4 transition hover:-translate-y-0.5"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold">{card.title}</p>
                         <p className="text-sm text-muted-foreground">
                           {card.boardName} · {card.listName}
                         </p>
                       </div>
-                      <Badge className={theme.chipClass}>
+                      <Badge className={`shrink-0 ${theme.chipClass}`}>
                         {getPriorityLabel(card.priority)}
                       </Badge>
                     </div>
