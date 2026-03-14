@@ -252,12 +252,12 @@ export function CalendarView({ cards }: CalendarViewProps) {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <CalendarMetric
-                  className="sm:col-span-2 xl:col-span-1"
+                  className="md:col-span-2"
                   label="Mes visible"
                   value={format(visibleMonth, "MMMM", { locale: es })}
-                  valueClassName="capitalize"
+                  valueClassName="capitalize break-words text-[clamp(1.4rem,2.5vw,2.1rem)]"
                   hint={`${visibleMonthCards.length} tarjetas en agenda`}
                 />
                 <CalendarMetric
