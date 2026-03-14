@@ -176,84 +176,86 @@ export async function getBoardPageData(
   boardId: string,
   userId: string,
 ): Promise<BoardPageData | null> {
-  const membership = await getBoardMembership(boardId, userId);
-
-  if (!membership) {
-    return null;
-  }
-
-  const board = await prisma.board.findUnique({
+  const membership = await prisma.boardMember.findUnique({
     where: {
-      id: boardId,
+      boardId_userId: {
+        boardId,
+        userId,
+      },
     },
-    include: {
-      labels: {
-        orderBy: {
-          name: "asc",
-        },
-      },
-      members: {
-        orderBy: {
-          createdAt: "asc",
-        },
+    select: {
+      role: true,
+      board: {
         include: {
-          user: {
-            select: userSummarySelect,
-          },
-        },
-      },
-      invitations: {
-        where: {
-          status: "PENDING",
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          invitedBy: {
-            select: {
-              name: true,
+          labels: {
+            orderBy: {
+              name: "asc",
             },
           },
-        },
-      },
-      lists: {
-        orderBy: {
-          position: "asc",
-        },
-        include: {
-          cards: {
+          members: {
+            orderBy: {
+              createdAt: "asc",
+            },
+            include: {
+              user: {
+                select: userSummarySelect,
+              },
+            },
+          },
+          invitations: {
+            where: {
+              status: "PENDING",
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: {
+              invitedBy: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          lists: {
             orderBy: {
               position: "asc",
             },
             include: {
-              assignments: {
+              cards: {
+                orderBy: {
+                  position: "asc",
+                },
                 include: {
-                  user: {
-                    select: userSummarySelect,
+                  assignments: {
+                    include: {
+                      user: {
+                        select: userSummarySelect,
+                      },
+                    },
                   },
-                },
-              },
-              cardLabels: {
-                include: {
-                  label: true,
-                },
-              },
-              comments: {
-                select: {
-                  id: true,
-                },
-              },
-              attachments: {
-                select: {
-                  id: true,
-                },
-              },
-              checklists: {
-                include: {
-                  items: {
+                  cardLabels: {
+                    include: {
+                      label: true,
+                    },
+                  },
+                  comments: {
                     select: {
-                      isCompleted: true,
+                      id: true,
+                    },
+                  },
+                  attachments: {
+                    select: {
+                      id: true,
+                    },
+                  },
+                  checklists: {
+                    include: {
+                      items: {
+                        select: {
+                          isCompleted: true,
+                        },
+                      },
                     },
                   },
                 },
@@ -265,11 +267,12 @@ export async function getBoardPageData(
     },
   });
 
-  if (!board) {
+  if (!membership?.board) {
     return null;
   }
 
   const role = membership.role as BoardRole;
+  const board = membership.board;
   const members: BoardMemberView[] = board.members.map((member) => ({
     ...serializeUser(member.user),
     role: member.role as BoardRole,
@@ -319,16 +322,17 @@ export async function getCardDetail(
   cardId: string,
   userId: string,
 ): Promise<CardDetailView | null> {
-  const membership = await getBoardMembership(boardId, userId);
-
-  if (!membership) {
-    return null;
-  }
-
   const card = await prisma.card.findFirst({
     where: {
       id: cardId,
       boardId,
+      board: {
+        members: {
+          some: {
+            userId,
+          },
+        },
+      },
     },
     include: {
       createdBy: {

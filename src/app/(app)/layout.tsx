@@ -1,7 +1,8 @@
+import { Suspense } from "react";
+
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { requireUser } from "@/lib/auth/session";
-import { getUserSidebarBoards } from "@/lib/data/boards";
 
 export default async function AppLayout({
   children,
@@ -9,11 +10,12 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const user = await requireUser();
-  const boards = await getUserSidebarBoards(user.id);
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar user={user} boards={boards} />
+      <Suspense fallback={<AppSidebar.Skeleton user={user} />}>
+        <AppSidebar user={user} />
+      </Suspense>
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <AppHeader user={user} />
         <main className="flex-1 px-4 py-6 sm:px-6">{children}</main>

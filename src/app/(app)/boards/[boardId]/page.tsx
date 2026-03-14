@@ -11,8 +11,7 @@ type BoardPageProps = {
 };
 
 export default async function BoardPage({ params }: BoardPageProps) {
-  const user = await requireUser();
-  const { boardId } = await params;
+  const [user, { boardId }] = await Promise.all([requireUser(), params]);
   const board = await getBoardPageData(boardId, user.id);
 
   if (!board) {

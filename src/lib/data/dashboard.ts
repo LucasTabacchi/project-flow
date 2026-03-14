@@ -16,21 +16,7 @@ const userSummarySelect = {
   avatarUrl: true,
 } as const;
 
-function serializeUser(user: {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl: string | null;
-}): UserSummary {
-  return {
-    userId: user.id,
-    name: user.name,
-    email: user.email,
-    avatarUrl: user.avatarUrl,
-  };
-}
-
-function serializeSearchCard(card: {
+type SearchCardRecord = {
   id: string;
   title: string;
   description: string | null;
@@ -46,7 +32,7 @@ function serializeSearchCard(card: {
   list: {
     name: string;
   };
-  assignments: Array<{
+  assignments?: Array<{
     user: {
       id: string;
       name: string;
@@ -54,14 +40,30 @@ function serializeSearchCard(card: {
       avatarUrl: string | null;
     };
   }>;
-  cardLabels: Array<{
+  cardLabels?: Array<{
     label: {
       id: string;
       name: string;
       color: SearchCardView["labels"][number]["color"];
     };
   }>;
-}): SearchCardView {
+};
+
+function serializeUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+}): UserSummary {
+  return {
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+  };
+}
+
+function serializeSearchCard(card: SearchCardRecord): SearchCardView {
   return {
     id: card.id,
     boardId: card.boardId,
@@ -74,12 +76,12 @@ function serializeSearchCard(card: {
     dueDate: card.dueDate?.toISOString() ?? null,
     status: card.status,
     priority: card.priority,
-    labels: card.cardLabels.map(({ label }) => ({
+    labels: (card.cardLabels ?? []).map(({ label }) => ({
       id: label.id,
       name: label.name,
       color: label.color,
     })),
-    assignees: card.assignments.map(({ user }) => serializeUser(user)),
+    assignees: (card.assignments ?? []).map(({ user }) => serializeUser(user)),
     isOverdue: isCardOverdue(card.dueDate, card.status),
   };
 }
@@ -88,130 +90,169 @@ export async function getDashboardData(
   userId: string,
   email: string,
 ): Promise<DashboardData> {
-  const [boards, invitations, upcomingCards] = await Promise.all([
-    prisma.board.findMany({
-      where: {
-        members: {
-          some: {
-            userId,
-          },
-        },
-      },
-      include: {
-        members: {
-          select: {
-            userId: true,
-            role: true,
-          },
-        },
-        lists: {
-          select: {
-            id: true,
-          },
-        },
-        cards: {
-          select: {
-            id: true,
-            status: true,
-            dueDate: true,
-          },
-        },
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-    }),
-    prisma.boardInvitation.findMany({
-      where: {
-        email,
-        status: "PENDING",
-      },
-      include: {
-        board: {
-          select: {
-            id: true,
-            name: true,
-            theme: true,
-          },
-        },
-        invitedBy: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    }),
-    prisma.card.findMany({
-      where: {
-        board: {
+  const today = startOfDay(new Date());
+  const nextWeek = addDays(today, 7);
+  const now = new Date();
+
+  const [boards, invitations, completedCounts, overdueCounts, upcomingCards] =
+    await Promise.all([
+      prisma.board.findMany({
+        where: {
           members: {
             some: {
               userId,
             },
           },
         },
-        dueDate: {
-          gte: startOfDay(new Date()),
-          lte: addDays(new Date(), 7),
-        },
-      },
-      include: {
-        board: {
-          select: {
-            name: true,
-            theme: true,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          theme: true,
+          updatedAt: true,
+          members: {
+            where: {
+              userId,
+            },
+            select: {
+              role: true,
+            },
+            take: 1,
           },
-        },
-        list: {
-          select: {
-            name: true,
-          },
-        },
-        assignments: {
-          include: {
-            user: {
-              select: userSummarySelect,
+          _count: {
+            select: {
+              members: true,
+              lists: true,
+              cards: true,
             },
           },
         },
-        cardLabels: {
-          include: {
-            label: true,
+        orderBy: {
+          updatedAt: "desc",
+        },
+      }),
+      prisma.boardInvitation.findMany({
+        where: {
+          email,
+          status: "PENDING",
+        },
+        include: {
+          board: {
+            select: {
+              id: true,
+              name: true,
+              theme: true,
+            },
+          },
+          invitedBy: {
+            select: {
+              name: true,
+            },
           },
         },
-      },
-      orderBy: {
-        dueDate: "asc",
-      },
-      take: 6,
-    }),
-  ]);
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+      prisma.card.groupBy({
+        by: ["boardId"],
+        where: {
+          board: {
+            members: {
+              some: {
+                userId,
+              },
+            },
+          },
+          status: "DONE",
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+      prisma.card.groupBy({
+        by: ["boardId"],
+        where: {
+          board: {
+            members: {
+              some: {
+                userId,
+              },
+            },
+          },
+          dueDate: {
+            lt: now,
+          },
+          status: {
+            not: "DONE",
+          },
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+      prisma.card.findMany({
+        where: {
+          board: {
+            members: {
+              some: {
+                userId,
+              },
+            },
+          },
+          dueDate: {
+            gte: today,
+            lte: nextWeek,
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueDate: true,
+          status: true,
+          priority: true,
+          boardId: true,
+          board: {
+            select: {
+              name: true,
+              theme: true,
+            },
+          },
+          listId: true,
+          list: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          dueDate: "asc",
+        },
+        take: 6,
+      }),
+    ]);
 
-  const boardSummaries = boards.map((board) => {
-    const role =
-      board.members.find((member) => member.userId === userId)?.role ?? "VIEWER";
-    const completedCards = board.cards.filter((card) => card.status === "DONE").length;
-    const overdueCards = board.cards.filter((card) =>
-      isCardOverdue(card.dueDate, card.status),
-    ).length;
+  const completedByBoard = new Map(
+    completedCounts.map((item) => [item.boardId, item._count._all]),
+  );
+  const overdueByBoard = new Map(
+    overdueCounts.map((item) => [item.boardId, item._count._all]),
+  );
 
-    return {
-      id: board.id,
-      name: board.name,
-      description: board.description,
-      theme: board.theme,
-      role,
-      memberCount: board.members.length,
-      listCount: board.lists.length,
-      cardCount: board.cards.length,
-      completedCards,
-      overdueCards,
-      updatedAt: board.updatedAt.toISOString(),
-    };
-  });
+  const boardSummaries = boards.map((board) => ({
+    id: board.id,
+    name: board.name,
+    description: board.description,
+    theme: board.theme,
+    role: board.members[0]?.role ?? "VIEWER",
+    memberCount: board._count.members,
+    listCount: board._count.lists,
+    cardCount: board._count.cards,
+    completedCards: completedByBoard.get(board.id) ?? 0,
+    overdueCards: overdueByBoard.get(board.id) ?? 0,
+    updatedAt: board.updatedAt.toISOString(),
+  }));
 
   return {
     boards: boardSummaries,
@@ -262,8 +303,12 @@ export async function getSearchCards(userId: string, filters: SearchFilters) {
         },
       },
       ...(filters.boardId ? { boardId: filters.boardId } : {}),
-      ...(filters.priority ? { priority: filters.priority as SearchCardView["priority"] } : {}),
-      ...(filters.status ? { status: filters.status as SearchCardView["status"] } : {}),
+      ...(filters.priority
+        ? { priority: filters.priority as SearchCardView["priority"] }
+        : {}),
+      ...(filters.status
+        ? { status: filters.status as SearchCardView["status"] }
+        : {}),
       ...(filters.assigneeId
         ? {
             assignments: {
@@ -309,28 +354,35 @@ export async function getSearchCards(userId: string, filters: SearchFilters) {
           }
         : {}),
     },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      dueDate: true,
+      status: true,
+      priority: true,
+      boardId: true,
       board: {
         select: {
           name: true,
           theme: true,
         },
       },
+      listId: true,
       list: {
         select: {
           name: true,
         },
       },
-      assignments: {
-        include: {
-          user: {
-            select: userSummarySelect,
-          },
-        },
-      },
       cardLabels: {
-        include: {
-          label: true,
+        select: {
+          label: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
         },
       },
     },
@@ -366,28 +418,24 @@ export async function getCalendarCards(userId: string) {
         not: null,
       },
     },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      dueDate: true,
+      status: true,
+      priority: true,
+      boardId: true,
       board: {
         select: {
           name: true,
           theme: true,
         },
       },
+      listId: true,
       list: {
         select: {
           name: true,
-        },
-      },
-      assignments: {
-        include: {
-          user: {
-            select: userSummarySelect,
-          },
-        },
-      },
-      cardLabels: {
-        include: {
-          label: true,
         },
       },
     },
@@ -459,69 +507,67 @@ export async function getProfilePageData(userId: string): Promise<ProfilePageDat
 }
 
 export async function getSearchContext(userId: string) {
-  const boards = await prisma.board.findMany({
-    where: {
-      members: {
-        some: {
-          userId,
-        },
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-      theme: true,
-      labels: {
-        select: {
-          id: true,
-          name: true,
-          color: true,
-        },
-      },
-      members: {
-        select: {
-          user: {
-            select: userSummarySelect,
+  const [boards, labels, members] = await Promise.all([
+    prisma.board.findMany({
+      where: {
+        members: {
+          some: {
+            userId,
           },
         },
       },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-  });
-
-  const memberMap = new Map<string, UserSummary>();
-  const labelMap = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      color: string;
-    }
-  >();
-
-  boards.forEach((board) => {
-    board.members.forEach(({ user }) => {
-      memberMap.set(user.id, serializeUser(user));
-    });
-
-    board.labels.forEach((label) => {
-      labelMap.set(label.id, {
-        id: label.id,
-        name: label.name,
-        color: label.color,
-      });
-    });
-  });
+      select: {
+        id: true,
+        name: true,
+        theme: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    }),
+    prisma.label.findMany({
+      where: {
+        board: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
+    prisma.boardMember.findMany({
+      where: {
+        board: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+      },
+      distinct: ["userId"],
+      select: {
+        user: {
+          select: userSummarySelect,
+        },
+      },
+    }),
+  ]);
 
   return {
-    boards: boards.map((board) => ({
-      id: board.id,
-      name: board.name,
-      theme: board.theme,
-    })),
-    members: Array.from(memberMap.values()),
-    labels: Array.from(labelMap.values()),
+    boards,
+    members: members
+      .map(({ user }) => serializeUser(user))
+      .sort((left, right) => left.name.localeCompare(right.name, "es")),
+    labels,
   };
 }

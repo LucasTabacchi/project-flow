@@ -11,8 +11,7 @@ function getSingleValue(value: string | string[] | undefined) {
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
-  const user = await requireUser();
-  const params = await searchParams;
+  const [user, params] = await Promise.all([requireUser(), searchParams]);
 
   const filters = {
     q: getSingleValue(params.q),
