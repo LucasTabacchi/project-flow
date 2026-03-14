@@ -56,7 +56,13 @@ export async function loginAction(
       return failure("La contraseña es incorrecta.");
     }
 
-    await createSession(user.id);
+    await createSession({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+    });
     revalidatePath("/", "layout");
 
     return success({ redirectTo: "/dashboard" }, "Bienvenido de nuevo.");
@@ -115,7 +121,13 @@ export async function registerAction(
       },
     });
 
-    await createSession(user.id);
+    await createSession({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+    });
     revalidatePath("/", "layout");
 
     return success({ redirectTo: "/dashboard" }, "Cuenta creada correctamente.");
