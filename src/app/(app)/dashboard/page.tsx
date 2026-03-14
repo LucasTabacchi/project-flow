@@ -69,8 +69,8 @@ async function DashboardSections({
 
       <section className="grid gap-6 2xl:grid-cols-[1.5fr_0.9fr]">
         <div className="space-y-4">
-          <div className="flex justify-center sm:justify-start">
-            <div className="text-center sm:text-left">
+          <div>
+            <div className="text-left">
               <h3 className="font-display text-2xl font-semibold">Tus tableros</h3>
               <p className="text-sm text-muted-foreground">
                 Solo ves los propios o compartidos contigo.
@@ -91,7 +91,7 @@ async function DashboardSections({
 
         <Card>
           <CardHeader>
-            <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
+            <div className="flex flex-col items-start gap-4 text-left sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle>Próximas entregas</CardTitle>
                 <p className="text-sm text-muted-foreground">
