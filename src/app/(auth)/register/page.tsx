@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { RegisterForm } from "@/components/auth/register-form";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Crear cuenta | ProjectFlow",
@@ -18,6 +20,14 @@ type RegisterPageProps = {
 
 function getSingleSearchParam(value?: string | string[]) {
   return typeof value === "string" ? value : value?.[0];
+}
+
+function getSafeRedirectTarget(value?: string) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard";
+  }
+
+  return value;
 }
 
 function buildAuthHref(
@@ -42,7 +52,14 @@ function buildAuthHref(
 export default async function RegisterPage({ searchParams }: RegisterPageProps) {
   const params = await searchParams;
   const email = getSingleSearchParam(params.email);
-  const redirectTo = getSingleSearchParam(params.redirectTo);
+  const redirectTo = getSafeRedirectTarget(
+    getSingleSearchParam(params.redirectTo),
+  );
+  const user = await getCurrentUser();
+
+  if (user) {
+    redirect(redirectTo);
+  }
 
   return (
     <AuthShell
