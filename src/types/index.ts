@@ -116,6 +116,14 @@ export type BoardSummary = {
   updatedAt: string;
 };
 
+export type SidebarBoardSummary = {
+  id: string;
+  name: string;
+  theme: string;
+  role: BoardRole;
+  updatedAt: string;
+};
+
 export type PendingInvitation = {
   id: string;
   boardId: string;

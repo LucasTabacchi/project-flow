@@ -13,6 +13,7 @@ import type {
   CardDetailView,
   CardSummaryView,
   LabelView,
+  SidebarBoardSummary,
   UserSummary,
 } from "@/types";
 
@@ -140,7 +141,9 @@ export async function getBoardMembership(boardId: string, userId: string) {
   });
 }
 
-export async function getUserSidebarBoards(userId: string) {
+export async function getUserSidebarBoards(
+  userId: string,
+): Promise<SidebarBoardSummary[]> {
   const boards = await prisma.boardMember.findMany({
     where: {
       userId,
