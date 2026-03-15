@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { requireUser } from "@/lib/auth/session";
-import { getSearchCards, getSearchContext } from "@/lib/data/dashboard";
+import { getSearchCards } from "@/lib/data/dashboard";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SearchResults } from "@/components/search/search-results";
 
@@ -11,6 +11,23 @@ type SearchPageProps = {
 
 function getSingleValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function SearchResultsFallback() {
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="rounded-[28px] border border-border bg-card/70 p-6"
+        >
+          <div className="h-5 w-2/3 animate-pulse rounded bg-secondary" />
+          <div className="mt-4 h-4 w-full animate-pulse rounded bg-secondary/70" />
+          <div className="mt-3 h-4 w-1/2 animate-pulse rounded bg-secondary/70" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function SearchPageFallback() {
@@ -33,23 +50,12 @@ function SearchPageFallback() {
         <div className="h-11 w-32 animate-pulse rounded-2xl bg-secondary" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={index}
-            className="rounded-[28px] border border-border bg-card/70 p-6"
-          >
-            <div className="h-5 w-2/3 animate-pulse rounded bg-secondary" />
-            <div className="mt-4 h-4 w-full animate-pulse rounded bg-secondary/70" />
-            <div className="mt-3 h-4 w-1/2 animate-pulse rounded bg-secondary/70" />
-          </div>
-        ))}
-      </div>
+      <SearchResultsFallback />
     </div>
   );
 }
 
-async function SearchPageContent({
+async function SearchResultsSection({
   userId,
   filters,
 }: {
@@ -64,39 +70,17 @@ async function SearchPageContent({
     overdue: string;
   };
 }) {
-  const [results, context] = await Promise.all([
-    getSearchCards(userId, {
-      query: filters.q || undefined,
-      boardId: filters.boardId || undefined,
-      assigneeId: filters.assigneeId || undefined,
-      labelId: filters.labelId || undefined,
-      priority: filters.priority || undefined,
-      status: filters.status || undefined,
-      onlyOverdue: filters.overdue === "true",
-    }),
-    getSearchContext(userId),
-  ]);
+  const results = await getSearchCards(userId, {
+    query: filters.q || undefined,
+    boardId: filters.boardId || undefined,
+    assigneeId: filters.assigneeId || undefined,
+    labelId: filters.labelId || undefined,
+    priority: filters.priority || undefined,
+    status: filters.status || undefined,
+    onlyOverdue: filters.overdue === "true",
+  });
 
-  const filtersKey = [
-    filters.q,
-    filters.boardId,
-    filters.assigneeId,
-    filters.labelId,
-    filters.priority,
-    filters.status,
-    filters.overdue,
-  ].join(":");
-
-  return (
-    <div className="space-y-6">
-      <SearchFilters
-        key={filtersKey}
-        context={context}
-        initialFilters={filters}
-      />
-      <SearchResults results={results} />
-    </div>
-  );
+  return <SearchResults results={results} />;
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
@@ -114,7 +98,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <Suspense fallback={<SearchPageFallback />}>
-      <SearchPageContent userId={user.id} filters={filters} />
+      <div className="space-y-6">
+        <SearchFilters initialFilters={filters} />
+        <Suspense fallback={<SearchResultsFallback />}>
+          <SearchResultsSection userId={user.id} filters={filters} />
+        </Suspense>
+      </div>
     </Suspense>
   );
 }

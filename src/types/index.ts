@@ -164,6 +164,20 @@ export type SearchCardView = {
   isOverdue: boolean;
 };
 
+export type SearchContextData = {
+  boards: Array<{
+    id: string;
+    name: string;
+    theme: string;
+  }>;
+  members: UserSummary[];
+  labels: Array<{
+    id: string;
+    name: string;
+    color: LabelColor;
+  }>;
+};
+
 export type DashboardData = {
   boards: BoardSummary[];
   pendingInvitations: PendingInvitation[];

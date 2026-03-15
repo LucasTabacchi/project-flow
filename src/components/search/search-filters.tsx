@@ -15,22 +15,9 @@ import {
 } from "@/components/ui/select";
 import { CARD_PRIORITIES, CARD_STATUSES } from "@/lib/constants";
 import { getPriorityLabel, getStatusLabel } from "@/lib/utils";
-import type { UserSummary } from "@/types";
+import type { SearchContextData } from "@/types";
 
 type SearchFiltersProps = {
-  context: {
-    boards: Array<{
-      id: string;
-      name: string;
-      theme: string;
-    }>;
-    members: UserSummary[];
-    labels: Array<{
-      id: string;
-      name: string;
-      color: string;
-    }>;
-  };
   initialFilters: {
     q: string;
     boardId: string;
@@ -40,6 +27,12 @@ type SearchFiltersProps = {
     status: string;
     overdue: string;
   };
+};
+
+const EMPTY_CONTEXT: SearchContextData = {
+  boards: [],
+  members: [],
+  labels: [],
 };
 
 function buildSearchHref(pathname: string, params: URLSearchParams) {
@@ -56,15 +49,56 @@ function syncParam(params: URLSearchParams, key: string, value: string) {
   params.set(key, value);
 }
 
-export function SearchFilters({
-  context,
-  initialFilters,
-}: SearchFiltersProps) {
+export function SearchFilters({ initialFilters }: SearchFiltersProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(initialFilters.q);
+  const [context, setContext] = useState<SearchContextData>(EMPTY_CONTEXT);
+  const [contextStatus, setContextStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+
+  useEffect(() => {
+    setQuery(initialFilters.q);
+  }, [initialFilters.q]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadContext = async () => {
+      setContextStatus("loading");
+
+      try {
+        const response = await fetch("/api/search/context", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with ${response.status}`);
+        }
+
+        const payload = (await response.json()) as SearchContextData;
+        setContext(payload);
+        setContextStatus("ready");
+      } catch {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setContext(EMPTY_CONTEXT);
+        setContextStatus("error");
+      }
+    };
+
+    void loadContext();
+
+    return () => controller.abort();
+  }, []);
+
+  const filtersDisabled = contextStatus !== "ready";
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -123,6 +157,7 @@ export function SearchFilters({
           />
 
           <Select
+            disabled={filtersDisabled}
             value={initialFilters.boardId || "ALL"}
             onValueChange={(value) => updateFilter("boardId", value)}
           >
@@ -140,6 +175,7 @@ export function SearchFilters({
           </Select>
 
           <Select
+            disabled={filtersDisabled}
             value={initialFilters.assigneeId || "ALL"}
             onValueChange={(value) => updateFilter("assigneeId", value)}
           >
@@ -157,6 +193,7 @@ export function SearchFilters({
           </Select>
 
           <Select
+            disabled={filtersDisabled}
             value={initialFilters.labelId || "ALL"}
             onValueChange={(value) => updateFilter("labelId", value)}
           >
@@ -210,6 +247,16 @@ export function SearchFilters({
       </Card>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        {contextStatus === "loading" ? (
+          <span className="text-sm text-muted-foreground">Cargando filtros...</span>
+        ) : null}
+
+        {contextStatus === "error" ? (
+          <span className="text-sm text-muted-foreground">
+            No pudimos cargar los filtros avanzados.
+          </span>
+        ) : null}
+
         {isPending ? (
           <span className="text-sm text-muted-foreground">Actualizando resultados...</span>
         ) : null}
