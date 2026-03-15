@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createListAction } from "@/app/actions/boards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { useBoardStore } from "@/stores/board-store";
 
 type AddListFormProps = {
   boardId: string;
@@ -15,10 +16,10 @@ type AddListFormProps = {
 };
 
 export function AddListForm({ boardId, disabled = false }: AddListFormProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
+  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,7 +38,12 @@ export function AddListForm({ boardId, disabled = false }: AddListFormProps) {
       toast.success(result.message ?? "Lista creada.");
       setName("");
       setOpen(false);
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(boardId));
+      } catch {
+        toast.error("No pudimos refrescar el tablero con la nueva lista.");
+      }
     });
   }
 

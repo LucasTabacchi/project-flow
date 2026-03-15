@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import {
   failure,
@@ -11,8 +12,15 @@ import {
 import { createSession, destroySession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db";
+import { logError, logWarn } from "@/lib/observability";
 import { getPrismaErrorMessage } from "@/lib/prisma-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { loginSchema, registerSchema } from "@/lib/validators/auth";
+
+const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 8;
+const REGISTER_RATE_LIMIT_WINDOW_MS = 30 * 60 * 1000;
+const REGISTER_RATE_LIMIT_MAX_ATTEMPTS = 5;
 
 function getFormValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -27,6 +35,46 @@ function getSafeRedirectTarget(value: string) {
   return value;
 }
 
+async function getClientAddress() {
+  const headerStore = await headers();
+  const forwardedFor = headerStore.get("x-forwarded-for");
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() ?? "unknown";
+  }
+
+  return (
+    headerStore.get("x-real-ip") ??
+    headerStore.get("cf-connecting-ip") ??
+    "unknown"
+  );
+}
+
+async function isAuthRateLimited(options: {
+  scope: string;
+  identifier: string;
+  limit: number;
+  windowMs: number;
+}) {
+  const clientAddress = await getClientAddress();
+  const result = checkRateLimit({
+    scope: options.scope,
+    key: `${clientAddress}:${options.identifier.toLowerCase()}`,
+    limit: options.limit,
+    windowMs: options.windowMs,
+  });
+
+  if (!result.ok) {
+    logWarn(`${options.scope}.rate_limited`, {
+      clientAddress,
+      identifier: options.identifier,
+      resetAt: result.resetAt,
+    });
+  }
+
+  return result.ok;
+}
+
 export type AuthActionState = ActionResult<{
   redirectTo: string;
 }>;
@@ -36,8 +84,20 @@ export async function loginAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const redirectTo = getSafeRedirectTarget(getFormValue(formData, "redirectTo"));
+  const email = getFormValue(formData, "email");
+  const isAllowed = await isAuthRateLimited({
+    scope: "auth.login",
+    identifier: email || "anonymous",
+    limit: LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+    windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
+  });
+
+  if (!isAllowed) {
+    return failure("Demasiados intentos de acceso. Esperá unos minutos y volvé a probar.");
+  }
+
   const parsed = loginSchema.safeParse({
-    email: getFormValue(formData, "email"),
+    email,
     password: getFormValue(formData, "password"),
   });
 
@@ -53,6 +113,10 @@ export async function loginAction(
     });
 
     if (!user) {
+      logWarn("auth.login.rejected", {
+        email: parsed.data.email,
+        reason: "user_not_found",
+      });
       return failure("No encontramos una cuenta con ese email.");
     }
 
@@ -62,6 +126,11 @@ export async function loginAction(
     );
 
     if (!isValidPassword) {
+      logWarn("auth.login.rejected", {
+        email: parsed.data.email,
+        userId: user.id,
+        reason: "invalid_password",
+      });
       return failure("La contraseña es incorrecta.");
     }
 
@@ -76,6 +145,11 @@ export async function loginAction(
 
     return success({ redirectTo }, "Bienvenido de nuevo.");
   } catch (error) {
+    logError("auth.login.failed", {
+      email: parsed.data.email,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,
@@ -90,9 +164,21 @@ export async function registerAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const redirectTo = getSafeRedirectTarget(getFormValue(formData, "redirectTo"));
+  const email = getFormValue(formData, "email");
+  const isAllowed = await isAuthRateLimited({
+    scope: "auth.register",
+    identifier: email || "anonymous",
+    limit: REGISTER_RATE_LIMIT_MAX_ATTEMPTS,
+    windowMs: REGISTER_RATE_LIMIT_WINDOW_MS,
+  });
+
+  if (!isAllowed) {
+    return failure("Demasiados intentos de registro. Esperá un rato antes de volver a intentar.");
+  }
+
   const parsed = registerSchema.safeParse({
     name: getFormValue(formData, "name"),
-    email: getFormValue(formData, "email"),
+    email,
     password: getFormValue(formData, "password"),
     confirmPassword: getFormValue(formData, "confirmPassword"),
   });
@@ -109,6 +195,10 @@ export async function registerAction(
     });
 
     if (existingUser) {
+      logWarn("auth.register.rejected", {
+        email: parsed.data.email,
+        reason: "email_already_registered",
+      });
       return failure("Ese email ya está registrado.");
     }
 
@@ -142,6 +232,11 @@ export async function registerAction(
 
     return success({ redirectTo }, "Cuenta creada correctamente.");
   } catch (error) {
+    logError("auth.register.failed", {
+      email: parsed.data.email,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,

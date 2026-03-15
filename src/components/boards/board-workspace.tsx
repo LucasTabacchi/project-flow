@@ -220,8 +220,6 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       router.refresh();
       return;
     }
-
-    router.refresh();
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -292,8 +290,6 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
           router.refresh();
           return;
         }
-
-        router.refresh();
       });
 
       return;

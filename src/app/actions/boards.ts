@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import {
   failure,
@@ -15,7 +16,9 @@ import { touchBoard } from "@/lib/board-realtime";
 import { prisma } from "@/lib/db";
 import { buildInvitationUrl, sendBoardInvitationEmail } from "@/lib/email";
 import { canEditBoard, canManageMembers } from "@/lib/permissions";
+import { logError, logWarn } from "@/lib/observability";
 import { getPrismaErrorMessage } from "@/lib/prisma-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { getBoardMembership } from "@/lib/data/boards";
 import {
   createBoardSchema,
@@ -31,6 +34,9 @@ import {
   updateListSchema,
 } from "@/lib/validators/board";
 
+const INVITE_RATE_LIMIT_WINDOW_MS = 30 * 60 * 1000;
+const INVITE_RATE_LIMIT_MAX_ATTEMPTS = 12;
+
 async function requireEditableBoard(boardId: string, userId: string) {
   const membership = await getBoardMembership(boardId, userId);
 
@@ -43,6 +49,63 @@ async function requireEditableBoard(boardId: string, userId: string) {
   }
 
   return membership;
+}
+
+function hasUniqueIds(values: string[]) {
+  return new Set(values).size === values.length;
+}
+
+async function getClientAddress() {
+  const headerStore = await headers();
+  const forwardedFor = headerStore.get("x-forwarded-for");
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() ?? "unknown";
+  }
+
+  return (
+    headerStore.get("x-real-ip") ??
+    headerStore.get("cf-connecting-ip") ??
+    "unknown"
+  );
+}
+
+async function isInviteRateLimited(input: {
+  boardId: string;
+  userId: string;
+  email: string;
+}) {
+  const clientAddress = await getClientAddress();
+  const result = checkRateLimit({
+    scope: "board.invite",
+    key: `${clientAddress}:${input.userId}:${input.boardId}`,
+    limit: INVITE_RATE_LIMIT_MAX_ATTEMPTS,
+    windowMs: INVITE_RATE_LIMIT_WINDOW_MS,
+  });
+
+  if (!result.ok) {
+    logWarn("board.invite.rate_limited", {
+      boardId: input.boardId,
+      userId: input.userId,
+      email: input.email,
+      clientAddress,
+      resetAt: result.resetAt,
+    });
+  }
+
+  return !result.ok;
+}
+
+async function getBoardListRecord(boardId: string, listId: string) {
+  return prisma.list.findFirst({
+    where: {
+      id: listId,
+      boardId,
+    },
+    select: {
+      id: true,
+    },
+  });
 }
 
 async function requireManageMembers(boardId: string, userId: string) {
@@ -350,6 +413,12 @@ export async function updateListAction(input: unknown): Promise<ActionResult> {
     return failure("Tu rol no puede editar listas.");
   }
 
+  const list = await getBoardListRecord(parsed.data.boardId, parsed.data.listId);
+
+  if (!list) {
+    return failure("La lista indicada no pertenece a este tablero.");
+  }
+
   await prisma.list.update({
     where: {
       id: parsed.data.listId,
@@ -383,6 +452,12 @@ export async function deleteListAction(input: unknown): Promise<ActionResult> {
     return failure("Tu rol no puede eliminar listas.");
   }
 
+  const list = await getBoardListRecord(parsed.data.boardId, parsed.data.listId);
+
+  if (!list) {
+    return failure("La lista indicada no pertenece a este tablero.");
+  }
+
   await prisma.list.delete({
     where: {
       id: parsed.data.listId,
@@ -411,6 +486,29 @@ export async function reorderListsAction(input: unknown): Promise<ActionResult> 
 
   if (membership === "forbidden") {
     return failure("Tu rol no puede reordenar listas.");
+  }
+
+  if (!hasUniqueIds(parsed.data.orderedIds)) {
+    return failure("El orden de listas contiene duplicados.");
+  }
+
+  const boardLists = await prisma.list.findMany({
+    where: {
+      boardId: parsed.data.boardId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (boardLists.length !== parsed.data.orderedIds.length) {
+    return failure("El tablero cambió mientras reordenabas las listas. Intentá de nuevo.");
+  }
+
+  const boardListIds = new Set(boardLists.map((list) => list.id));
+
+  if (parsed.data.orderedIds.some((listId) => !boardListIds.has(listId))) {
+    return failure("El orden enviado contiene listas que no pertenecen al tablero.");
   }
 
   await prisma.$transaction(
@@ -489,6 +587,20 @@ export async function inviteMemberAction(
 
   if (membership === "forbidden") {
     return failure("Solo el propietario puede invitar miembros.");
+  }
+
+  if (parsed.data.email === user.email) {
+    return failure("No podés enviarte una invitación a vos mismo.");
+  }
+
+  if (
+    await isInviteRateLimited({
+      boardId: parsed.data.boardId,
+      userId: user.id,
+      email: parsed.data.email,
+    })
+  ) {
+    return failure("Se alcanzó el límite de invitaciones recientes. Esperá un momento antes de volver a intentar.");
   }
 
   try {
@@ -611,6 +723,13 @@ export async function inviteMemberAction(
       "Invitación enviada por email.",
     );
   } catch (error) {
+    logError("board.invite.failed", {
+      boardId: parsed.data.boardId,
+      userId: user.id,
+      email: parsed.data.email,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,
@@ -650,6 +769,12 @@ export async function acceptInvitationAction(
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
   } catch (error) {
+    logError("board.invitation.accept.failed", {
+      invitationId: parsed.data.invitationId,
+      userId: user.id,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,
@@ -689,6 +814,12 @@ export async function declineInvitationAction(
 
     return success(undefined, "Invitación rechazada.");
   } catch (error) {
+    logError("board.invitation.decline.failed", {
+      invitationId: parsed.data.invitationId,
+      userId: user.id,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,
@@ -728,6 +859,12 @@ export async function acceptInvitationByTokenAction(
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
   } catch (error) {
+    logError("board.invitation.accept_by_token.failed", {
+      token: parsed.data.token,
+      userId: user.id,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,
@@ -767,6 +904,12 @@ export async function declineInvitationByTokenAction(
 
     return success(undefined, "Invitación rechazada.");
   } catch (error) {
+    logError("board.invitation.decline_by_token.failed", {
+      token: parsed.data.token,
+      userId: user.id,
+      error,
+    });
+
     return failure(
       getPrismaErrorMessage(
         error,

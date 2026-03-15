@@ -32,8 +32,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
 import { BOARD_THEMES, LABEL_COLORS, LABEL_COLOR_STYLES } from "@/lib/constants";
 import { getBoardTheme, getRoleLabel } from "@/lib/utils";
+import { useBoardStore } from "@/stores/board-store";
 import type { BoardPageData } from "@/types";
 
 type BoardHeaderProps = {
@@ -42,6 +44,7 @@ type BoardHeaderProps = {
 
 export function BoardHeader({ board }: BoardHeaderProps) {
   const router = useRouter();
+  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
   const [name, setName] = useState(board.name);
@@ -70,7 +73,12 @@ export function BoardHeader({ board }: BoardHeaderProps) {
 
       toast.success(result.message ?? "Tablero actualizado.");
       setSettingsOpen(false);
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(board.id));
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras guardar los cambios.");
+      }
     });
   }
 
@@ -87,7 +95,6 @@ export function BoardHeader({ board }: BoardHeaderProps) {
 
       toast.success(result.message ?? "Tablero eliminado.");
       router.push("/dashboard");
-      router.refresh();
     });
   }
 
@@ -108,7 +115,12 @@ export function BoardHeader({ board }: BoardHeaderProps) {
       setLabelName("");
       setLabelColor("SKY");
       setLabelOpen(false);
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(board.id));
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras crear la etiqueta.");
+      }
     });
   }
 

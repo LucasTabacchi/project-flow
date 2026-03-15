@@ -4,9 +4,13 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import {
+  BoardSnapshotRequestError,
+  fetchBoardSnapshot,
+} from "@/lib/board-snapshot-client";
 import { BOARD_PRESENCE_HEARTBEAT_MS } from "@/lib/realtime-constants";
 import { useBoardStore } from "@/stores/board-store";
-import type { BoardPageData, BoardPresenceView } from "@/types";
+import type { BoardPresenceView } from "@/types";
 
 type BoardRealtimeSyncProps = {
   boardId: string;
@@ -60,25 +64,19 @@ export function BoardRealtimeSync({
     syncInFlightRef.current = true;
 
     try {
-      const response = await fetch(`/api/boards/${boardId}/snapshot`, {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-
-      if (!response.ok) {
-        if ([401, 403, 404].includes(response.status)) {
-          router.refresh();
-          return;
-        }
-
-        throw new Error("snapshot_fetch_failed");
-      }
-
-      const nextBoard = (await response.json()) as BoardPageData;
+      const nextBoard = await fetchBoardSnapshot(boardId);
       hydrateBoard(nextBoard);
       lastKnownUpdatedAtRef.current = nextBoard.updatedAt;
       syncErrorShownRef.current = false;
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof BoardSnapshotRequestError &&
+        [401, 403, 404].includes(error.status)
+      ) {
+        router.refresh();
+        return;
+      }
+
       if (!syncErrorShownRef.current) {
         toast.error("No pudimos sincronizar el tablero en vivo.");
         syncErrorShownRef.current = true;

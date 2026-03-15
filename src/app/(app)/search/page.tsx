@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { requireUser } from "@/lib/auth/session";
-import { getSearchCards } from "@/lib/data/dashboard";
+import { getSearchCards, getSearchContext } from "@/lib/data/dashboard";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SearchResults } from "@/components/search/search-results";
 
@@ -30,9 +30,9 @@ function SearchResultsFallback() {
   );
 }
 
-function SearchPageFallback() {
+function SearchFiltersFallback() {
   return (
-    <div className="space-y-6">
+    <>
       <div className="rounded-[32px] border border-border bg-card/70 p-6">
         <div className="h-6 w-40 animate-pulse rounded bg-secondary" />
         <div className="mt-3 h-4 w-full max-w-xl animate-pulse rounded bg-secondary/70" />
@@ -49,17 +49,15 @@ function SearchPageFallback() {
       <div className="flex justify-end">
         <div className="h-11 w-32 animate-pulse rounded-2xl bg-secondary" />
       </div>
-
-      <SearchResultsFallback />
-    </div>
+    </>
   );
 }
 
-async function SearchResultsSection({
-  userId,
+async function SearchFiltersSection({
+  contextPromise,
   filters,
 }: {
-  userId: string;
+  contextPromise: ReturnType<typeof getSearchContext>;
   filters: {
     q: string;
     boardId: string;
@@ -70,15 +68,24 @@ async function SearchResultsSection({
     overdue: string;
   };
 }) {
-  const results = await getSearchCards(userId, {
-    query: filters.q || undefined,
-    boardId: filters.boardId || undefined,
-    assigneeId: filters.assigneeId || undefined,
-    labelId: filters.labelId || undefined,
-    priority: filters.priority || undefined,
-    status: filters.status || undefined,
-    onlyOverdue: filters.overdue === "true",
-  });
+  const context = await contextPromise;
+  const searchFiltersKey = Object.values(filters).join("|");
+
+  return (
+    <SearchFilters
+      key={searchFiltersKey}
+      context={context}
+      initialFilters={filters}
+    />
+  );
+}
+
+async function SearchResultsSection({
+  resultsPromise,
+}: {
+  resultsPromise: ReturnType<typeof getSearchCards>;
+}) {
+  const results = await resultsPromise;
 
   return <SearchResults results={results} />;
 }
@@ -95,15 +102,25 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     status: getSingleValue(params.status),
     overdue: getSingleValue(params.overdue),
   };
+  const searchContextPromise = getSearchContext(user.id);
+  const searchResultsPromise = getSearchCards(user.id, {
+    query: filters.q || undefined,
+    boardId: filters.boardId || undefined,
+    assigneeId: filters.assigneeId || undefined,
+    labelId: filters.labelId || undefined,
+    priority: filters.priority || undefined,
+    status: filters.status || undefined,
+    onlyOverdue: filters.overdue === "true",
+  });
 
   return (
-    <Suspense fallback={<SearchPageFallback />}>
-      <div className="space-y-6">
-        <SearchFilters initialFilters={filters} />
-        <Suspense fallback={<SearchResultsFallback />}>
-          <SearchResultsSection userId={user.id} filters={filters} />
-        </Suspense>
-      </div>
-    </Suspense>
+    <div className="space-y-6">
+      <Suspense fallback={<SearchFiltersFallback />}>
+        <SearchFiltersSection contextPromise={searchContextPromise} filters={filters} />
+      </Suspense>
+      <Suspense fallback={<SearchResultsFallback />}>
+        <SearchResultsSection resultsPromise={searchResultsPromise} />
+      </Suspense>
+    </div>
   );
 }

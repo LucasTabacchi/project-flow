@@ -51,7 +51,6 @@ export function CreateBoardDialog() {
       setDescription("");
       setTheme(DEFAULT_BOARD_THEME);
       router.push(`/boards/${result.data?.boardId}`);
-      router.refresh();
     });
   }
 

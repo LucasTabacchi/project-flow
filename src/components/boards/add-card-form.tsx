@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 import { createCardAction } from "@/app/actions/cards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { useBoardStore } from "@/stores/board-store";
 
 type AddCardFormProps = {
   boardId: string;
@@ -20,10 +21,10 @@ export function AddCardForm({
   listId,
   disabled = false,
 }: AddCardFormProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [isPending, startTransition] = useTransition();
+  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,7 +44,12 @@ export function AddCardForm({
       toast.success(result.message ?? "Tarjeta creada.");
       setTitle("");
       setOpen(false);
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(boardId));
+      } catch {
+        toast.error("No pudimos refrescar el tablero con la nueva tarjeta.");
+      }
     });
   }
 

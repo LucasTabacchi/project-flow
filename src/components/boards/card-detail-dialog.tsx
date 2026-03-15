@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { LoaderCircle, Paperclip, Send, SquareCheckBig, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
 import {
   Select,
   SelectContent,
@@ -52,6 +52,7 @@ import type {
   CardDetailView,
   LabelView,
 } from "@/types";
+import { useBoardStore } from "@/stores/board-store";
 
 type CardDetailDialogProps = {
   boardId: string;
@@ -87,7 +88,7 @@ export function CardDetailDialog({
   labels,
   canEdit,
 }: CardDetailDialogProps) {
-  const router = useRouter();
+  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
   const [detail, setDetail] = useState<CardDetailView | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -137,6 +138,10 @@ export function CardDetailDialog({
 
     return result.data;
   }, [boardId]);
+
+  const syncBoardSnapshot = useCallback(async () => {
+    hydrateBoard(await fetchBoardSnapshot(boardId));
+  }, [boardId, hydrateBoard]);
 
   const hasUnsavedCardChanges = useMemo(() => {
     if (!detail) {
@@ -293,7 +298,12 @@ export function CardDetailDialog({
       if (nextDetail) {
         syncDetail(nextDetail);
       }
-      router.refresh();
+
+      try {
+        await syncBoardSnapshot();
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras actualizar la tarjeta.");
+      }
     });
   }
 
@@ -315,7 +325,12 @@ export function CardDetailDialog({
 
       toast.success(result.message ?? "Tarjeta eliminada.");
       onOpenChange(false);
-      router.refresh();
+
+      try {
+        await syncBoardSnapshot();
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras eliminar la tarjeta.");
+      }
     });
   }
 
@@ -341,7 +356,12 @@ export function CardDetailDialog({
     if (nextDetail) {
       syncDetail(nextDetail);
     }
-    router.refresh();
+
+    try {
+      await syncBoardSnapshot();
+    } catch {
+      toast.error("No pudimos refrescar el tablero tras agregar el comentario.");
+    }
   }
 
   async function handleAddChecklist() {
@@ -366,7 +386,12 @@ export function CardDetailDialog({
     if (nextDetail) {
       syncDetail(nextDetail);
     }
-    router.refresh();
+
+    try {
+      await syncBoardSnapshot();
+    } catch {
+      toast.error("No pudimos refrescar el tablero tras agregar el checklist.");
+    }
   }
 
   async function handleAddChecklistItem(checklistId: string) {
@@ -395,7 +420,12 @@ export function CardDetailDialog({
     if (nextDetail) {
       syncDetail(nextDetail);
     }
-    router.refresh();
+
+    try {
+      await syncBoardSnapshot();
+    } catch {
+      toast.error("No pudimos refrescar el tablero tras agregar el item.");
+    }
   }
 
   async function handleToggleChecklist(itemId: string, isCompleted: boolean) {
@@ -416,7 +446,12 @@ export function CardDetailDialog({
         syncDetail(nextDetail);
       }
     }
-    router.refresh();
+
+    try {
+      await syncBoardSnapshot();
+    } catch {
+      toast.error("No pudimos refrescar el tablero tras actualizar el checklist.");
+    }
   }
 
   async function handleAddAttachment() {
@@ -443,7 +478,12 @@ export function CardDetailDialog({
     if (nextDetail) {
       syncDetail(nextDetail);
     }
-    router.refresh();
+
+    try {
+      await syncBoardSnapshot();
+    } catch {
+      toast.error("No pudimos refrescar el tablero tras agregar el adjunto.");
+    }
   }
 
   return (

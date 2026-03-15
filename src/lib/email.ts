@@ -1,5 +1,6 @@
 import "server-only";
 
+import { logError, logWarn } from "@/lib/observability";
 import { formatFullDate, getRoleLabel } from "@/lib/utils";
 import type { BoardRole } from "@/types";
 
@@ -121,6 +122,13 @@ export async function sendBoardInvitationEmail(
   const from = process.env.EMAIL_FROM;
 
   if (!apiKey || !from) {
+    logWarn("email.invitation.skipped_missing_config", {
+      hasApiKey: Boolean(apiKey),
+      hasFrom: Boolean(from),
+      to: input.to,
+      boardName: input.boardName,
+    });
+
     return {
       sent: false,
       reason:
@@ -149,6 +157,12 @@ export async function sendBoardInvitationEmail(
     const message =
       error instanceof Error ? error.message : "No pudimos contactar al proveedor.";
 
+    logError("email.invitation.request_failed", {
+      to: input.to,
+      boardName: input.boardName,
+      error,
+    });
+
     return {
       sent: false,
       reason: `La invitación quedó creada, pero falló el envío del correo. ${message}`,
@@ -157,6 +171,13 @@ export async function sendBoardInvitationEmail(
 
   if (!response.ok) {
     const body = await response.text();
+
+    logWarn("email.invitation.provider_rejected", {
+      to: input.to,
+      boardName: input.boardName,
+      status: response.status,
+      body: body.slice(0, 500),
+    });
 
     return {
       sent: false,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripHorizontal, MoreHorizontal, PencilLine, Trash2 } from "lucide-react";
@@ -18,7 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
 import { cn } from "@/lib/utils";
+import { useBoardStore } from "@/stores/board-store";
 import type { BoardListView } from "@/types";
 
 type BoardColumnProps = {
@@ -36,10 +37,10 @@ export function BoardColumn({
   disableInteractions = false,
   onOpenCard,
 }: BoardColumnProps) {
-  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(list.name);
   const [isPending, startTransition] = useTransition();
+  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
   const {
     attributes,
     listeners,
@@ -73,7 +74,12 @@ export function BoardColumn({
 
       toast.success(result.message ?? "Lista actualizada.");
       setIsEditing(false);
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(boardId));
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras renombrar la lista.");
+      }
     });
   }
 
@@ -90,7 +96,12 @@ export function BoardColumn({
       }
 
       toast.success(result.message ?? "Lista eliminada.");
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(boardId));
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras eliminar la lista.");
+      }
     });
   }
 

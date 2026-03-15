@@ -39,6 +39,130 @@ async function requireEditableBoard(boardId: string, userId: string) {
   return membership;
 }
 
+function hasUniqueIds(values: string[]) {
+  return new Set(values).size === values.length;
+}
+
+async function getBoardListRecord(boardId: string, listId: string) {
+  return prisma.list.findFirst({
+    where: {
+      id: listId,
+      boardId,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+async function getBoardCardRecord(boardId: string, cardId: string) {
+  return prisma.card.findFirst({
+    where: {
+      id: cardId,
+      boardId,
+    },
+    select: {
+      id: true,
+      listId: true,
+      completedAt: true,
+    },
+  });
+}
+
+async function getBoardChecklistRecord(boardId: string, checklistId: string) {
+  return prisma.cardChecklist.findFirst({
+    where: {
+      id: checklistId,
+      card: {
+        boardId,
+      },
+    },
+    select: {
+      id: true,
+      cardId: true,
+    },
+  });
+}
+
+async function getBoardChecklistItemRecord(boardId: string, itemId: string) {
+  return prisma.checklistItem.findFirst({
+    where: {
+      id: itemId,
+      checklist: {
+        card: {
+          boardId,
+        },
+      },
+    },
+    select: {
+      id: true,
+      checklist: {
+        select: {
+          cardId: true,
+        },
+      },
+    },
+  });
+}
+
+async function validateCardRelations(input: {
+  boardId: string;
+  labelIds: string[];
+  assigneeIds: string[];
+}) {
+  const labelIds = [...new Set(input.labelIds)];
+  const assigneeIds = [...new Set(input.assigneeIds)];
+
+  const [labels, assignees] = await Promise.all([
+    labelIds.length
+      ? prisma.label.findMany({
+          where: {
+            boardId: input.boardId,
+            id: {
+              in: labelIds,
+            },
+          },
+          select: {
+            id: true,
+          },
+        })
+      : [],
+    assigneeIds.length
+      ? prisma.boardMember.findMany({
+          where: {
+            boardId: input.boardId,
+            userId: {
+              in: assigneeIds,
+            },
+          },
+          select: {
+            userId: true,
+          },
+        })
+      : [],
+  ]);
+
+  if (labels.length !== labelIds.length) {
+    return {
+      ok: false as const,
+      message: "Hay etiquetas que no pertenecen a este tablero.",
+    };
+  }
+
+  if (assignees.length !== assigneeIds.length) {
+    return {
+      ok: false as const,
+      message: "Hay responsables que no pertenecen a este tablero.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    labelIds,
+    assigneeIds,
+  };
+}
+
 export async function getCardDetailAction(
   boardId: string,
   cardId: string,
@@ -71,6 +195,12 @@ export async function createCardAction(
 
   if (membership === "forbidden") {
     return failure("Tu rol no puede crear tarjetas.");
+  }
+
+  const list = await getBoardListRecord(parsed.data.boardId, parsed.data.listId);
+
+  if (!list) {
+    return failure("La lista indicada no pertenece a este tablero.");
   }
 
   const position = await prisma.card.count({
@@ -113,6 +243,22 @@ export async function updateCardAction(input: unknown): Promise<ActionResult> {
     return failure("Tu rol no puede editar tarjetas.");
   }
 
+  const card = await getBoardCardRecord(parsed.data.boardId, parsed.data.cardId);
+
+  if (!card) {
+    return failure("La tarjeta indicada no pertenece a este tablero.");
+  }
+
+  const relationScope = await validateCardRelations({
+    boardId: parsed.data.boardId,
+    labelIds: parsed.data.labelIds,
+    assigneeIds: parsed.data.assigneeIds,
+  });
+
+  if (!relationScope.ok) {
+    return failure(relationScope.message);
+  }
+
   await prisma.card.update({
     where: {
       id: parsed.data.cardId,
@@ -124,11 +270,11 @@ export async function updateCardAction(input: unknown): Promise<ActionResult> {
       status: parsed.data.status,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
       completedAt:
-        parsed.data.status === "DONE" ? new Date() : null,
+        parsed.data.status === "DONE" ? card.completedAt ?? new Date() : null,
       cardLabels: {
         deleteMany: {},
         createMany: {
-          data: parsed.data.labelIds.map((labelId) => ({
+          data: relationScope.labelIds.map((labelId) => ({
             labelId,
           })),
         },
@@ -136,7 +282,7 @@ export async function updateCardAction(input: unknown): Promise<ActionResult> {
       assignments: {
         deleteMany: {},
         createMany: {
-          data: parsed.data.assigneeIds.map((userId) => ({
+          data: relationScope.assigneeIds.map((userId) => ({
             userId,
           })),
         },
@@ -168,6 +314,12 @@ export async function deleteCardAction(input: unknown): Promise<ActionResult> {
     return failure("Tu rol no puede eliminar tarjetas.");
   }
 
+  const card = await getBoardCardRecord(parsed.data.boardId, parsed.data.cardId);
+
+  if (!card) {
+    return failure("La tarjeta indicada no pertenece a este tablero.");
+  }
+
   await prisma.card.delete({
     where: {
       id: parsed.data.cardId,
@@ -196,6 +348,49 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
 
   if (membership === "forbidden") {
     return failure("Tu rol no puede mover tarjetas.");
+  }
+
+  const providedListIds = parsed.data.lists.map((list) => list.id);
+  const providedCardIds = parsed.data.lists.flatMap((list) => list.cardIds);
+
+  if (!hasUniqueIds(providedListIds) || !hasUniqueIds(providedCardIds)) {
+    return failure("El orden enviado contiene listas o tarjetas duplicadas.");
+  }
+
+  const [boardLists, boardCards] = await Promise.all([
+    prisma.list.findMany({
+      where: {
+        boardId: parsed.data.boardId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.card.findMany({
+      where: {
+        boardId: parsed.data.boardId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+  ]);
+
+  if (
+    boardLists.length !== providedListIds.length ||
+    boardCards.length !== providedCardIds.length
+  ) {
+    return failure("El tablero cambió mientras movías tarjetas. Actualizá y volvé a intentar.");
+  }
+
+  const boardListIds = new Set(boardLists.map((list) => list.id));
+  const boardCardIds = new Set(boardCards.map((card) => card.id));
+
+  if (
+    providedListIds.some((listId) => !boardListIds.has(listId)) ||
+    providedCardIds.some((cardId) => !boardCardIds.has(cardId))
+  ) {
+    return failure("El orden enviado contiene elementos ajenos a este tablero.");
   }
 
   const updates = parsed.data.lists.flatMap((list) =>
@@ -234,6 +429,12 @@ export async function addCommentAction(input: unknown): Promise<ActionResult> {
     return failure("No tenés acceso a este tablero.");
   }
 
+  const card = await getBoardCardRecord(parsed.data.boardId, parsed.data.cardId);
+
+  if (!card) {
+    return failure("La tarjeta indicada no pertenece a este tablero.");
+  }
+
   await prisma.cardComment.create({
     data: {
       cardId: parsed.data.cardId,
@@ -265,6 +466,12 @@ export async function addChecklistAction(input: unknown): Promise<ActionResult> 
 
   if (membership === "forbidden") {
     return failure("Tu rol no puede editar checklists.");
+  }
+
+  const card = await getBoardCardRecord(parsed.data.boardId, parsed.data.cardId);
+
+  if (!card) {
+    return failure("La tarjeta indicada no pertenece a este tablero.");
   }
 
   const position = await prisma.cardChecklist.count({
@@ -308,24 +515,20 @@ export async function addChecklistItemAction(
     return failure("Tu rol no puede editar checklists.");
   }
 
+  const checklist = await getBoardChecklistRecord(
+    parsed.data.boardId,
+    parsed.data.checklistId,
+  );
+
+  if (!checklist) {
+    return failure("El checklist indicado no pertenece a este tablero.");
+  }
+
   const position = await prisma.checklistItem.count({
     where: {
       checklistId: parsed.data.checklistId,
     },
   });
-
-  const checklist = await prisma.cardChecklist.findUnique({
-    where: {
-      id: parsed.data.checklistId,
-    },
-    select: {
-      cardId: true,
-    },
-  });
-
-  if (!checklist) {
-    return failure("No encontramos el checklist indicado.");
-  }
 
   await prisma.checklistItem.create({
     data: {
@@ -360,6 +563,15 @@ export async function toggleChecklistItemAction(
 
   if (membership === "forbidden") {
     return failure("Tu rol no puede editar checklists.");
+  }
+
+  const checklistItem = await getBoardChecklistItemRecord(
+    parsed.data.boardId,
+    parsed.data.itemId,
+  );
+
+  if (!checklistItem) {
+    return failure("El item indicado no pertenece a este tablero.");
   }
 
   const item = await prisma.checklistItem.update({
@@ -405,6 +617,12 @@ export async function createAttachmentAction(
 
   if (membership === "forbidden") {
     return failure("Tu rol no puede agregar adjuntos.");
+  }
+
+  const card = await getBoardCardRecord(parsed.data.boardId, parsed.data.cardId);
+
+  if (!card) {
+    return failure("La tarjeta indicada no pertenece a este tablero.");
   }
 
   await prisma.attachment.create({

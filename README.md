@@ -77,6 +77,12 @@ npx prisma generate
 npm run db:push
 ```
 
+### 4.1. Optimizar la búsqueda en Supabase
+
+Opcional pero recomendado si el volumen de tarjetas empieza a crecer. En el SQL Editor de Supabase ejecutá:
+
+[`supabase/setup-search-indexes.sql`](C:\Users\lucas\Desktop\projectflow\supabase\setup-search-indexes.sql)
+
 ### 5. Cargar datos demo
 
 ```bash
@@ -144,6 +150,8 @@ supabase/
 - Las invitaciones generan un `token` unico, envian un correo mediante Resend cuando está configurado y exponen una ruta publica `/invite/[token]` para iniciar sesion, registrarse y aceptar desde el mismo enlace.
 - El acceso a tableros siempre se valida del lado del servidor.
 - Las mutaciones usan `Zod` y revalidan rutas afectadas.
+- Login, registro e invitaciones tienen rate limiting básico del lado del servidor para bajar abuso accidental o automatizado.
+- Los fallos de autenticación, invitaciones y email dejan logs estructurados en el runtime del servidor para facilitar diagnóstico.
 - El board usa una frontera cliente acotada para `dnd-kit`; el resto de paginas se apoya en Server Components.
 - Los adjuntos se modelan como links externos para mantener la app lista sin depender de storage externo.
 - Si vas a usar solo Prisma y no el Data API de Supabase, podés desactivarlo desde Settings si querés simplificar la superficie expuesta.

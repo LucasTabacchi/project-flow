@@ -97,7 +97,7 @@ function AgendaCard({ card }: { card: SearchCardView }) {
   return (
     <Link
       href={`/boards/${card.boardId}`}
-      prefetch
+      prefetch={false}
       className="group block rounded-[26px] border border-border bg-background/72 p-4 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-background"
     >
       <div className="flex items-start justify-between gap-4">
@@ -449,7 +449,7 @@ export function CalendarView({ cards }: CalendarViewProps) {
                   <Link
                     key={card.id}
                     href={`/boards/${card.boardId}`}
-                    prefetch
+                    prefetch={false}
                     className="block rounded-[24px] border border-border bg-background/72 p-4 transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-background"
                   >
                     <div className="flex flex-wrap items-center gap-2">

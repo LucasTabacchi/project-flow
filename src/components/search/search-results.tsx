@@ -32,7 +32,7 @@ export function SearchResults({ results }: SearchResultsProps) {
         const theme = getBoardTheme(card.boardTheme);
 
         return (
-          <Link key={card.id} href={`/boards/${card.boardId}`} prefetch>
+          <Link key={card.id} href={`/boards/${card.boardId}`} prefetch={false}>
             <Card className="h-full transition hover:-translate-y-0.5">
               <CardContent className="space-y-4 pt-6">
                 <div className="flex flex-wrap items-center gap-2">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { inviteMemberAction } from "@/app/actions/boards";
@@ -24,6 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { useBoardStore } from "@/stores/board-store";
 
 type InviteMemberDialogProps = {
   boardId: string;
@@ -34,11 +35,11 @@ export function InviteMemberDialog({
   boardId,
   disabled = false,
 }: InviteMemberDialogProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("EDITOR");
   const [isPending, startTransition] = useTransition();
+  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,7 +74,12 @@ export function InviteMemberDialog({
       setEmail("");
       setRole("EDITOR");
       setOpen(false);
-      router.refresh();
+
+      try {
+        hydrateBoard(await fetchBoardSnapshot(boardId));
+      } catch {
+        toast.error("No pudimos refrescar el tablero tras enviar la invitación.");
+      }
     });
   }
 

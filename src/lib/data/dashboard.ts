@@ -111,6 +111,10 @@ type SearchCardRecord = {
   }>;
 };
 
+type SearchCardIdRow = {
+  id: string;
+};
+
 function serializeUser(user: {
   id: string;
   name: string;
@@ -146,6 +150,14 @@ function serializeSearchCard(card: SearchCardRecord): SearchCardView {
     assignees: (card.assignments ?? []).map(({ user }) => serializeUser(user)),
     isOverdue: isCardOverdue(card.dueDate, card.status),
   };
+}
+
+function orderCardsByIds<T extends { id: string }>(rows: T[], orderedIds: string[]) {
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+
+  return orderedIds
+    .map((id) => rowsById.get(id))
+    .filter((row): row is T => Boolean(row));
 }
 
 export async function getDashboardData(
@@ -328,61 +340,122 @@ export async function getSearchCards(userId: string, filters: SearchFilters) {
     return [];
   }
 
+  const normalizedQuery = filters.query?.trim();
+  let orderedCardIds: string[] | null = null;
+
+  if (normalizedQuery) {
+    const queryPattern = `%${normalizedQuery}%`;
+    const conditions = [
+      Prisma.sql`c."boardId" IN (${Prisma.join(filteredBoardIds)})`,
+    ];
+
+    if (filters.priority) {
+      conditions.push(
+        Prisma.sql`c.priority = CAST(${filters.priority} AS "CardPriority")`,
+      );
+    }
+
+    if (filters.status) {
+      conditions.push(
+        Prisma.sql`c.status = CAST(${filters.status} AS "CardStatus")`,
+      );
+    }
+
+    if (filters.assigneeId) {
+      conditions.push(Prisma.sql`
+        EXISTS (
+          SELECT 1
+          FROM "CardAssignment" assignments
+          WHERE assignments."cardId" = c.id
+            AND assignments."userId" = ${filters.assigneeId}
+        )
+      `);
+    }
+
+    if (filters.labelId) {
+      conditions.push(Prisma.sql`
+        EXISTS (
+          SELECT 1
+          FROM "CardLabel" card_labels
+          WHERE card_labels."cardId" = c.id
+            AND card_labels."labelId" = ${filters.labelId}
+        )
+      `);
+    }
+
+    const searchVector = Prisma.sql`
+      setweight(to_tsvector('simple', coalesce(c.title, '')), 'A') ||
+      setweight(to_tsvector('simple', coalesce(c.description, '')), 'B') ||
+      setweight(to_tsvector('simple', coalesce(b.name, '')), 'C')
+    `;
+    const searchQuery = Prisma.sql`websearch_to_tsquery('simple', ${normalizedQuery})`;
+    const rankedCards = await prisma.$queryRaw<SearchCardIdRow[]>(Prisma.sql`
+      WITH ranked_cards AS (
+        SELECT
+          c.id,
+          ts_rank_cd(${searchVector}, ${searchQuery}) AS rank,
+          (
+            CASE WHEN c.title ILIKE ${queryPattern} THEN 4 ELSE 0 END +
+            CASE WHEN c.description ILIKE ${queryPattern} THEN 2 ELSE 0 END +
+            CASE WHEN b.name ILIKE ${queryPattern} THEN 1 ELSE 0 END
+          ) AS boost,
+          c."updatedAt"
+        FROM "Card" c
+        INNER JOIN "Board" b ON b.id = c."boardId"
+        WHERE ${Prisma.join(conditions, " AND ")}
+          AND (
+            ${searchVector} @@ ${searchQuery}
+            OR c.title ILIKE ${queryPattern}
+            OR c.description ILIKE ${queryPattern}
+            OR b.name ILIKE ${queryPattern}
+          )
+      )
+      SELECT id
+      FROM ranked_cards
+      ORDER BY boost DESC, rank DESC, "updatedAt" DESC
+      LIMIT 80
+    `);
+
+    orderedCardIds = rankedCards.map((row) => row.id);
+  }
+
   const cards = await prisma.card.findMany({
     where: {
-      boardId: {
-        in: filteredBoardIds,
-      },
-      ...(filters.priority
-        ? { priority: filters.priority as SearchCardView["priority"] }
-        : {}),
-      ...(filters.status
-        ? { status: filters.status as SearchCardView["status"] }
-        : {}),
-      ...(filters.assigneeId
+      ...(orderedCardIds
         ? {
-            assignments: {
-              some: {
-                userId: filters.assigneeId,
-              },
+            id: {
+              in: orderedCardIds,
             },
           }
-        : {}),
-      ...(filters.labelId
-        ? {
-            cardLabels: {
-              some: {
-                labelId: filters.labelId,
-              },
+        : {
+            boardId: {
+              in: filteredBoardIds,
             },
-          }
-        : {}),
-      ...(filters.query
-        ? {
-            OR: [
-              {
-                title: {
-                  contains: filters.query,
-                  mode: "insensitive",
-                },
-              },
-              {
-                description: {
-                  contains: filters.query,
-                  mode: "insensitive",
-                },
-              },
-              {
-                board: {
-                  name: {
-                    contains: filters.query,
-                    mode: "insensitive",
+            ...(filters.priority
+              ? { priority: filters.priority as SearchCardView["priority"] }
+              : {}),
+            ...(filters.status
+              ? { status: filters.status as SearchCardView["status"] }
+              : {}),
+            ...(filters.assigneeId
+              ? {
+                  assignments: {
+                    some: {
+                      userId: filters.assigneeId,
+                    },
                   },
-                },
-              },
-            ],
-          }
-        : {}),
+                }
+              : {}),
+            ...(filters.labelId
+              ? {
+                  cardLabels: {
+                    some: {
+                      labelId: filters.labelId,
+                    },
+                  },
+                }
+              : {}),
+          }),
     },
     select: {
       id: true,
@@ -416,18 +489,23 @@ export async function getSearchCards(userId: string, filters: SearchFilters) {
         },
       },
     },
-    orderBy: [
-      {
-        dueDate: "asc",
-      },
-      {
-        updatedAt: "desc",
-      },
-    ],
+    orderBy: orderedCardIds
+      ? undefined
+      : [
+          {
+            dueDate: "asc",
+          },
+          {
+            updatedAt: "desc",
+          },
+        ],
     take: 80,
   });
 
-  const serialized = cards.map(serializeSearchCard);
+  const orderedCards = orderedCardIds
+    ? orderCardsByIds(cards, orderedCardIds)
+    : cards;
+  const serialized = orderedCards.map(serializeSearchCard);
 
   return filters.onlyOverdue
     ? serialized.filter((card) => card.isOverdue)
