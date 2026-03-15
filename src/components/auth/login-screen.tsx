@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { AuthFormFallback } from "@/components/auth/auth-form-fallback";
+import { LoginAccessNote } from "@/components/auth/login-access-note";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
 
@@ -25,9 +26,12 @@ export function LoginScreen() {
       }
       showDemoCredentials={showDemoCredentials}
     >
-      <Suspense fallback={<AuthFormFallback />}>
-        <LoginForm />
-      </Suspense>
+      <div className="space-y-5">
+        <LoginAccessNote />
+        <Suspense fallback={<AuthFormFallback />}>
+          <LoginForm />
+        </Suspense>
+      </div>
     </AuthShell>
   );
 }

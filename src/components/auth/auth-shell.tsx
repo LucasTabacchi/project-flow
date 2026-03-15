@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   ArrowRight,
   CalendarRange,
@@ -154,13 +153,13 @@ export function AuthShell({
             </div>
 
             {asideLink ? (
-              <Link
+              <a
                 href={asideLink.href}
                 className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary"
               >
                 {asideLink.label}
                 <ArrowRight className="size-4" />
-              </Link>
+              </a>
             ) : null}
           </div>
         </div>
@@ -234,13 +233,13 @@ export function AuthShell({
             </div>
 
             {asideLink ? (
-              <Link
+              <a
                 href={asideLink.href}
                 className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary"
               >
                 {asideLink.label}
                 <ArrowRight className="size-4" />
-              </Link>
+              </a>
             ) : null}
           </div>
 

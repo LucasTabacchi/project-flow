@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -22,7 +21,6 @@ function SubmitButton() {
 }
 
 export function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [state, formAction] = useActionState<AuthActionState | null, FormData>(
     registerAction,
@@ -55,8 +53,8 @@ export function RegisterForm() {
       return;
     }
 
-    router.replace(state.data?.redirectTo ?? "/dashboard");
-  }, [router, state]);
+    window.location.replace(state.data?.redirectTo ?? "/dashboard");
+  }, [state]);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -117,9 +115,9 @@ export function RegisterForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tenés cuenta?{" "}
-        <Link href={loginHref} className="font-semibold text-primary">
+        <a href={loginHref} className="font-semibold text-primary">
           Iniciá sesión
-        </Link>
+        </a>
       </p>
     </form>
   );
