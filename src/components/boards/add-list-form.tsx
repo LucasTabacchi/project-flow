@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { createListAction } from "@/app/actions/boards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { appendListToBoard } from "@/lib/board-local-updates";
 import { useBoardStore } from "@/stores/board-store";
 
 type AddListFormProps = {
@@ -19,7 +19,7 @@ export function AddListForm({ boardId, disabled = false }: AddListFormProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
-  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
+  const mutateBoard = useBoardStore((state) => state.mutateBoard);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,15 +35,18 @@ export function AddListForm({ boardId, disabled = false }: AddListFormProps) {
         return;
       }
 
+      if (!result.data) {
+        toast.error("La lista se creó, pero no pudimos actualizar el tablero local.");
+        return;
+      }
+
+      const payload = result.data;
       toast.success(result.message ?? "Lista creada.");
       setName("");
       setOpen(false);
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(boardId));
-      } catch {
-        toast.error("No pudimos refrescar el tablero con la nueva lista.");
-      }
+      mutateBoard((board) =>
+        appendListToBoard(board, payload.list, payload.boardUpdatedAt),
+      );
     });
   }
 

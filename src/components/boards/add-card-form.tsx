@@ -7,7 +7,7 @@ import { Plus } from "lucide-react";
 import { createCardAction } from "@/app/actions/cards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { appendCardToBoard } from "@/lib/board-local-updates";
 import { useBoardStore } from "@/stores/board-store";
 
 type AddCardFormProps = {
@@ -24,7 +24,7 @@ export function AddCardForm({
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [isPending, startTransition] = useTransition();
-  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
+  const mutateBoard = useBoardStore((state) => state.mutateBoard);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,15 +41,23 @@ export function AddCardForm({
         return;
       }
 
+      if (!result.data) {
+        toast.error("La tarjeta se creó, pero no pudimos actualizar el tablero local.");
+        return;
+      }
+
+      const payload = result.data;
       toast.success(result.message ?? "Tarjeta creada.");
       setTitle("");
       setOpen(false);
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(boardId));
-      } catch {
-        toast.error("No pudimos refrescar el tablero con la nueva tarjeta.");
-      }
+      mutateBoard((board) =>
+        appendCardToBoard(
+          board,
+          listId,
+          payload.card,
+          payload.boardUpdatedAt,
+        ),
+      );
     });
   }
 

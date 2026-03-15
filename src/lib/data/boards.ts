@@ -106,6 +106,57 @@ function serializeCardSummary(card: {
   };
 }
 
+export async function getBoardCardSummary(
+  boardId: string,
+  cardId: string,
+): Promise<CardSummaryView | null> {
+  const card = await prisma.card.findFirst({
+    where: {
+      id: cardId,
+      boardId,
+    },
+    include: {
+      assignments: {
+        include: {
+          user: {
+            select: userSummarySelect,
+          },
+        },
+      },
+      cardLabels: {
+        include: {
+          label: true,
+        },
+      },
+      comments: {
+        select: {
+          id: true,
+        },
+      },
+      attachments: {
+        select: {
+          id: true,
+        },
+      },
+      checklists: {
+        include: {
+          items: {
+            select: {
+              isCompleted: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!card) {
+    return null;
+  }
+
+  return serializeCardSummary(card);
+}
+
 function buildStats(
   members: BoardMemberView[],
   lists: Array<{

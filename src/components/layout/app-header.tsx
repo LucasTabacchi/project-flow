@@ -209,7 +209,6 @@ export function AppHeader({ user }: AppHeaderProps) {
                     startLogout(async () => {
                       await logoutAction();
                       router.replace("/login");
-                      router.refresh();
                     });
                   }}
                 >

@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { updateBoardTimestamp } from "@/lib/board-local-updates";
 import { useBoardStore } from "@/stores/board-store";
 
 type InviteMemberDialogProps = {
@@ -39,7 +39,7 @@ export function InviteMemberDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("EDITOR");
   const [isPending, startTransition] = useTransition();
-  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
+  const mutateBoard = useBoardStore((state) => state.mutateBoard);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,12 +74,7 @@ export function InviteMemberDialog({
       setEmail("");
       setRole("EDITOR");
       setOpen(false);
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(boardId));
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras enviar la invitación.");
-      }
+      mutateBoard((board) => updateBoardTimestamp(board, result.data?.boardUpdatedAt));
     });
   }
 

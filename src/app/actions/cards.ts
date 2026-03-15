@@ -10,7 +10,11 @@ import {
 } from "@/lib/action-result";
 import { requireUser } from "@/lib/auth/session";
 import { touchBoard, touchCard } from "@/lib/board-realtime";
-import { getBoardMembership, getCardDetail } from "@/lib/data/boards";
+import {
+  getBoardCardSummary,
+  getBoardMembership,
+  getCardDetail,
+} from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
 import {
@@ -179,7 +183,7 @@ export async function getCardDetailAction(
 
 export async function createCardAction(
   input: unknown,
-): Promise<ActionResult<{ cardId: string }>> {
+): Promise<ActionResult<{ cardId: string; card: NonNullable<Awaited<ReturnType<typeof getBoardCardSummary>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = createCardSchema.safeParse(input);
 
@@ -219,13 +223,29 @@ export async function createCardAction(
     },
   });
 
-  await touchBoard(parsed.data.boardId);
+  const [summary, boardUpdatedAt] = await Promise.all([
+    getBoardCardSummary(parsed.data.boardId, card.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success({ cardId: card.id }, "Tarjeta creada.");
+  if (!summary) {
+    return failure("La tarjeta se creó pero no pudimos preparar la vista actualizada.");
+  }
+
+  return success(
+    {
+      cardId: card.id,
+      card: summary,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Tarjeta creada.",
+  );
 }
 
-export async function updateCardAction(input: unknown): Promise<ActionResult> {
+export async function updateCardAction(
+  input: unknown,
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = updateCardSchema.safeParse(input);
 
@@ -290,13 +310,28 @@ export async function updateCardAction(input: unknown): Promise<ActionResult> {
     },
   });
 
-  await touchBoard(parsed.data.boardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Tarjeta actualizada.");
+  if (!detail) {
+    return failure("La tarjeta se actualizó pero no pudimos cargar la vista actualizada.");
+  }
+
+  return success(
+    {
+      detail,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Tarjeta actualizada.",
+  );
 }
 
-export async function deleteCardAction(input: unknown): Promise<ActionResult> {
+export async function deleteCardAction(
+  input: unknown,
+): Promise<ActionResult<{ cardId: string; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = deleteCardSchema.safeParse(input);
 
@@ -326,10 +361,16 @@ export async function deleteCardAction(input: unknown): Promise<ActionResult> {
     },
   });
 
-  await touchBoard(parsed.data.boardId);
+  const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Tarjeta eliminada.");
+  return success(
+    {
+      cardId: parsed.data.cardId,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Tarjeta eliminada.",
+  );
 }
 
 export async function reorderCardsAction(input: unknown): Promise<ActionResult> {
@@ -415,7 +456,9 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
   return success(undefined, "Tarjetas reordenadas.");
 }
 
-export async function addCommentAction(input: unknown): Promise<ActionResult> {
+export async function addCommentAction(
+  input: unknown,
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = addCommentSchema.safeParse(input);
 
@@ -444,13 +487,28 @@ export async function addCommentAction(input: unknown): Promise<ActionResult> {
   });
 
   await touchCard(parsed.data.cardId);
-  await touchBoard(parsed.data.boardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Comentario agregado.");
+  if (!detail) {
+    return failure("El comentario se guardó pero no pudimos cargar la tarjeta actualizada.");
+  }
+
+  return success(
+    {
+      detail,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Comentario agregado.",
+  );
 }
 
-export async function addChecklistAction(input: unknown): Promise<ActionResult> {
+export async function addChecklistAction(
+  input: unknown,
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = addChecklistSchema.safeParse(input);
 
@@ -489,15 +547,28 @@ export async function addChecklistAction(input: unknown): Promise<ActionResult> 
   });
 
   await touchCard(parsed.data.cardId);
-  await touchBoard(parsed.data.boardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Checklist agregado.");
+  if (!detail) {
+    return failure("El checklist se creó pero no pudimos cargar la tarjeta actualizada.");
+  }
+
+  return success(
+    {
+      detail,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Checklist agregado.",
+  );
 }
 
 export async function addChecklistItemAction(
   input: unknown,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = addChecklistItemSchema.safeParse(input);
 
@@ -539,15 +610,28 @@ export async function addChecklistItemAction(
   });
 
   await touchCard(checklist.cardId);
-  await touchBoard(parsed.data.boardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, checklist.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Item agregado.");
+  if (!detail) {
+    return failure("El item se creó pero no pudimos cargar la tarjeta actualizada.");
+  }
+
+  return success(
+    {
+      detail,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Item agregado.",
+  );
 }
 
 export async function toggleChecklistItemAction(
   input: unknown,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = toggleChecklistItemSchema.safeParse(input);
 
@@ -593,15 +677,28 @@ export async function toggleChecklistItemAction(
   });
 
   await touchCard(item.checklist.cardId);
-  await touchBoard(parsed.data.boardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, item.checklist.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Checklist actualizado.");
+  if (!detail) {
+    return failure("El checklist se actualizó pero no pudimos cargar la tarjeta actualizada.");
+  }
+
+  return success(
+    {
+      detail,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Checklist actualizado.",
+  );
 }
 
 export async function createAttachmentAction(
   input: unknown,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = createAttachmentSchema.safeParse(input);
 
@@ -635,8 +732,21 @@ export async function createAttachmentAction(
   });
 
   await touchCard(parsed.data.cardId);
-  await touchBoard(parsed.data.boardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Adjunto agregado.");
+  if (!detail) {
+    return failure("El adjunto se agregó pero no pudimos cargar la tarjeta actualizada.");
+  }
+
+  return success(
+    {
+      detail,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Adjunto agregado.",
+  );
 }

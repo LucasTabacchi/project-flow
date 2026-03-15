@@ -27,7 +27,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import {
+  removeCardFromBoard,
+  replaceCardInBoard,
+} from "@/lib/board-local-updates";
 import {
   Select,
   SelectContent,
@@ -88,7 +91,7 @@ export function CardDetailDialog({
   labels,
   canEdit,
 }: CardDetailDialogProps) {
-  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
+  const mutateBoard = useBoardStore((state) => state.mutateBoard);
   const [detail, setDetail] = useState<CardDetailView | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -138,10 +141,6 @@ export function CardDetailDialog({
 
     return result.data;
   }, [boardId]);
-
-  const syncBoardSnapshot = useCallback(async () => {
-    hydrateBoard(await fetchBoardSnapshot(boardId));
-  }, [boardId, hydrateBoard]);
 
   const hasUnsavedCardChanges = useMemo(() => {
     if (!detail) {
@@ -294,16 +293,16 @@ export function CardDetailDialog({
       }
 
       toast.success(result.message ?? "Tarjeta actualizada.");
-      const nextDetail = await refreshDetail(detail.id);
-      if (nextDetail) {
-        syncDetail(nextDetail);
+      if (!result.data) {
+        toast.error("Guardamos los cambios, pero no pudimos refrescar la tarjeta.");
+        return;
       }
 
-      try {
-        await syncBoardSnapshot();
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras actualizar la tarjeta.");
-      }
+      const payload = result.data;
+      syncDetail(payload.detail);
+      mutateBoard((board) =>
+        replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+      );
     });
   }
 
@@ -324,13 +323,13 @@ export function CardDetailDialog({
       }
 
       toast.success(result.message ?? "Tarjeta eliminada.");
-      onOpenChange(false);
-
-      try {
-        await syncBoardSnapshot();
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras eliminar la tarjeta.");
+      if (result.data) {
+        const payload = result.data;
+        mutateBoard((board) =>
+          removeCardFromBoard(board, payload.cardId, payload.boardUpdatedAt),
+        );
       }
+      onOpenChange(false);
     });
   }
 
@@ -352,16 +351,16 @@ export function CardDetailDialog({
 
     setComment("");
     toast.success(result.message ?? "Comentario agregado.");
-    const nextDetail = await refreshDetail(detail.id);
-    if (nextDetail) {
-      syncDetail(nextDetail);
+    if (!result.data) {
+      toast.error("El comentario se guardó, pero no pudimos refrescar la tarjeta.");
+      return;
     }
 
-    try {
-      await syncBoardSnapshot();
-    } catch {
-      toast.error("No pudimos refrescar el tablero tras agregar el comentario.");
-    }
+    const payload = result.data;
+    syncDetail(payload.detail);
+    mutateBoard((board) =>
+      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+    );
   }
 
   async function handleAddChecklist() {
@@ -382,16 +381,16 @@ export function CardDetailDialog({
 
     setChecklistTitle("");
     toast.success(result.message ?? "Checklist agregado.");
-    const nextDetail = await refreshDetail(detail.id);
-    if (nextDetail) {
-      syncDetail(nextDetail);
+    if (!result.data) {
+      toast.error("El checklist se creó, pero no pudimos refrescar la tarjeta.");
+      return;
     }
 
-    try {
-      await syncBoardSnapshot();
-    } catch {
-      toast.error("No pudimos refrescar el tablero tras agregar el checklist.");
-    }
+    const payload = result.data;
+    syncDetail(payload.detail);
+    mutateBoard((board) =>
+      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+    );
   }
 
   async function handleAddChecklistItem(checklistId: string) {
@@ -416,16 +415,16 @@ export function CardDetailDialog({
       ...current,
       [checklistId]: "",
     }));
-    const nextDetail = await refreshDetail(detail.id);
-    if (nextDetail) {
-      syncDetail(nextDetail);
+    if (!result.data) {
+      toast.error("El item se creó, pero no pudimos refrescar la tarjeta.");
+      return;
     }
 
-    try {
-      await syncBoardSnapshot();
-    } catch {
-      toast.error("No pudimos refrescar el tablero tras agregar el item.");
-    }
+    const payload = result.data;
+    syncDetail(payload.detail);
+    mutateBoard((board) =>
+      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+    );
   }
 
   async function handleToggleChecklist(itemId: string, isCompleted: boolean) {
@@ -440,18 +439,16 @@ export function CardDetailDialog({
       return;
     }
 
-    if (detail) {
-      const nextDetail = await refreshDetail(detail.id);
-      if (nextDetail) {
-        syncDetail(nextDetail);
-      }
+    if (!result.data) {
+      toast.error("Actualizamos el checklist, pero no pudimos refrescar la tarjeta.");
+      return;
     }
 
-    try {
-      await syncBoardSnapshot();
-    } catch {
-      toast.error("No pudimos refrescar el tablero tras actualizar el checklist.");
-    }
+    const payload = result.data;
+    syncDetail(payload.detail);
+    mutateBoard((board) =>
+      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+    );
   }
 
   async function handleAddAttachment() {
@@ -474,16 +471,16 @@ export function CardDetailDialog({
     setAttachmentName("");
     setAttachmentUrl("");
     toast.success(result.message ?? "Adjunto agregado.");
-    const nextDetail = await refreshDetail(detail.id);
-    if (nextDetail) {
-      syncDetail(nextDetail);
+    if (!result.data) {
+      toast.error("El adjunto se agregó, pero no pudimos refrescar la tarjeta.");
+      return;
     }
 
-    try {
-      await syncBoardSnapshot();
-    } catch {
-      toast.error("No pudimos refrescar el tablero tras agregar el adjunto.");
-    }
+    const payload = result.data;
+    syncDetail(payload.detail);
+    mutateBoard((board) =>
+      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+    );
   }
 
   return (

@@ -25,6 +25,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  appendLabelToBoard,
+  updateBoardMetadata,
+} from "@/lib/board-local-updates";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -32,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
 import { BOARD_THEMES, LABEL_COLORS, LABEL_COLOR_STYLES } from "@/lib/constants";
 import { getBoardTheme, getRoleLabel } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
@@ -44,7 +47,7 @@ type BoardHeaderProps = {
 
 export function BoardHeader({ board }: BoardHeaderProps) {
   const router = useRouter();
-  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
+  const mutateBoard = useBoardStore((state) => state.mutateBoard);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
   const [name, setName] = useState(board.name);
@@ -71,14 +74,22 @@ export function BoardHeader({ board }: BoardHeaderProps) {
         return;
       }
 
+      if (!result.data) {
+        toast.error("Guardamos los cambios, pero no pudimos actualizar el tablero local.");
+        return;
+      }
+
+      const payload = result.data;
       toast.success(result.message ?? "Tablero actualizado.");
       setSettingsOpen(false);
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(board.id));
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras guardar los cambios.");
-      }
+      mutateBoard((currentBoard) =>
+        updateBoardMetadata(currentBoard, {
+          name,
+          description,
+          theme,
+          updatedAt: payload.boardUpdatedAt,
+        }),
+      );
     });
   }
 
@@ -111,16 +122,23 @@ export function BoardHeader({ board }: BoardHeaderProps) {
         return;
       }
 
+      if (!result.data) {
+        toast.error("La etiqueta se creó, pero no pudimos actualizar el tablero local.");
+        return;
+      }
+
+      const payload = result.data;
       toast.success(result.message ?? "Etiqueta creada.");
       setLabelName("");
       setLabelColor("SKY");
       setLabelOpen(false);
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(board.id));
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras crear la etiqueta.");
-      }
+      mutateBoard((currentBoard) =>
+        appendLabelToBoard(
+          currentBoard,
+          payload.label,
+          payload.boardUpdatedAt,
+        ),
+      );
     });
   }
 
@@ -153,7 +171,15 @@ export function BoardHeader({ board }: BoardHeaderProps) {
                 </Button>
               ) : null}
               {board.permissions.canEdit ? (
-                <Button variant="secondary" onClick={() => setSettingsOpen(true)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setName(board.name);
+                    setDescription(board.description ?? "");
+                    setTheme(board.theme);
+                    setSettingsOpen(true);
+                  }}
+                >
                   <Settings2 className="size-4" />
                   Configurar
                 </Button>

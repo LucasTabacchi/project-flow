@@ -13,6 +13,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -23,12 +24,21 @@ import { BoardColumn } from "@/components/boards/board-column";
 import { BoardFilters } from "@/components/boards/board-filters";
 import { BoardHeader } from "@/components/boards/board-header";
 import { BoardRealtimeSync } from "@/components/boards/board-realtime-sync";
-import { CardDetailDialog } from "@/components/boards/card-detail-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { isCardOverdue } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardListView, BoardPageData, CardSummaryView } from "@/types";
+
+const CardDetailDialog = dynamic(
+  () =>
+    import("@/components/boards/card-detail-dialog").then((module) => ({
+      default: module.CardDetailDialog,
+    })),
+  {
+    loading: () => null,
+  },
+);
 
 type BoardWorkspaceProps = {
   board: BoardPageData;
@@ -375,21 +385,23 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
         />
       )}
 
-      <CardDetailDialog
-        boardId={currentBoard.id}
-        cardId={selectedCardId}
-        cardUpdatedAt={selectedCardUpdatedAt}
-        open={Boolean(selectedCardId)}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeCard();
-          }
-        }}
-        members={currentBoard.members}
-        presence={currentBoard.presence}
-        labels={currentBoard.labels}
-        canEdit={currentBoard.permissions.canEdit}
-      />
+      {selectedCardId ? (
+        <CardDetailDialog
+          boardId={currentBoard.id}
+          cardId={selectedCardId}
+          cardUpdatedAt={selectedCardUpdatedAt}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              closeCard();
+            }
+          }}
+          members={currentBoard.members}
+          presence={currentBoard.presence}
+          labels={currentBoard.labels}
+          canEdit={currentBoard.permissions.canEdit}
+        />
+      ) : null}
     </div>
   );
 }

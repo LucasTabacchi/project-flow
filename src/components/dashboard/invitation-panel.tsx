@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -21,8 +21,13 @@ type InvitationPanelProps = {
 export function InvitationPanel({ invitations }: InvitationPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [items, setItems] = useState(invitations);
 
-  if (!invitations.length) {
+  useEffect(() => {
+    setItems(invitations);
+  }, [invitations]);
+
+  if (!items.length) {
     return null;
   }
 
@@ -35,7 +40,7 @@ export function InvitationPanel({ invitations }: InvitationPanelProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {invitations.map((invitation) => {
+        {items.map((invitation) => {
           const theme = getBoardTheme(invitation.boardTheme);
 
           return (
@@ -74,8 +79,10 @@ export function InvitationPanel({ invitations }: InvitationPanelProps) {
                       }
 
                       toast.success(result.message ?? "Invitación aceptada.");
+                      setItems((current) =>
+                        current.filter((item) => item.id !== invitation.id),
+                      );
                       router.push(`/boards/${result.data?.boardId}`);
-                      router.refresh();
                     })
                   }
                 >
@@ -97,7 +104,9 @@ export function InvitationPanel({ invitations }: InvitationPanelProps) {
                       }
 
                       toast.success(result.message ?? "Invitación rechazada.");
-                      router.refresh();
+                      setItems((current) =>
+                        current.filter((item) => item.id !== invitation.id),
+                      );
                     })
                   }
                 >

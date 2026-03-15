@@ -24,6 +24,7 @@ type BoardStore = {
   filters: BoardFilters;
   selectedCardId: string | null;
   hydrateBoard: (board: BoardPageData) => void;
+  mutateBoard: (updater: (board: BoardPageData) => BoardPageData) => void;
   setLists: (lists: BoardListView[]) => void;
   setPresence: (presence: BoardPresenceView[]) => void;
   setFilters: (filters: Partial<BoardFilters>) => void;
@@ -55,6 +56,26 @@ export const useBoardStore = create<BoardStore>((set) => ({
           ? state.selectedCardId
           : null,
     })),
+  mutateBoard: (updater) =>
+    set((state) => {
+      if (!state.board) {
+        return {};
+      }
+
+      const nextBoard = updater(state.board);
+      const nextSelectedCardId =
+        state.selectedCardId &&
+        nextBoard.lists.some((list) =>
+          list.cards.some((card) => card.id === state.selectedCardId),
+        )
+          ? state.selectedCardId
+          : null;
+
+      return {
+        board: nextBoard,
+        selectedCardId: nextSelectedCardId,
+      };
+    }),
   setLists: (lists) =>
     set((state) => ({
       board: state.board

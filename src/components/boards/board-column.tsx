@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { fetchBoardSnapshot } from "@/lib/board-snapshot-client";
+import { removeListFromBoard, renameListInBoard } from "@/lib/board-local-updates";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardListView } from "@/types";
@@ -40,7 +40,7 @@ export function BoardColumn({
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(list.name);
   const [isPending, startTransition] = useTransition();
-  const hydrateBoard = useBoardStore((state) => state.hydrateBoard);
+  const mutateBoard = useBoardStore((state) => state.mutateBoard);
   const {
     attributes,
     listeners,
@@ -72,14 +72,22 @@ export function BoardColumn({
         return;
       }
 
+      if (!result.data) {
+        toast.error("La lista se actualizó, pero no pudimos reflejar el cambio localmente.");
+        return;
+      }
+
+      const payload = result.data;
       toast.success(result.message ?? "Lista actualizada.");
       setIsEditing(false);
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(boardId));
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras renombrar la lista.");
-      }
+      mutateBoard((board) =>
+        renameListInBoard(
+          board,
+          payload.listId,
+          payload.name,
+          payload.boardUpdatedAt,
+        ),
+      );
     });
   }
 
@@ -95,13 +103,16 @@ export function BoardColumn({
         return;
       }
 
-      toast.success(result.message ?? "Lista eliminada.");
-
-      try {
-        hydrateBoard(await fetchBoardSnapshot(boardId));
-      } catch {
-        toast.error("No pudimos refrescar el tablero tras eliminar la lista.");
+      if (!result.data) {
+        toast.error("La lista se eliminó, pero no pudimos reflejar el cambio localmente.");
+        return;
       }
+
+      const payload = result.data;
+      toast.success(result.message ?? "Lista eliminada.");
+      mutateBoard((board) =>
+        removeListFromBoard(board, payload.listId, payload.boardUpdatedAt),
+      );
     });
   }
 

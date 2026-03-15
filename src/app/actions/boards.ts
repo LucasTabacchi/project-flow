@@ -20,6 +20,7 @@ import { logError, logWarn } from "@/lib/observability";
 import { getPrismaErrorMessage } from "@/lib/prisma-error";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getBoardMembership } from "@/lib/data/boards";
+import type { BoardInvitationView, BoardListView, LabelView } from "@/types";
 import {
   createBoardSchema,
   createLabelSchema,
@@ -291,7 +292,9 @@ export async function createBoardAction(
   return success({ boardId: board.id }, "Tablero creado.");
 }
 
-export async function updateBoardAction(input: unknown): Promise<ActionResult> {
+export async function updateBoardAction(
+  input: unknown,
+): Promise<ActionResult<{ boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = updateBoardSchema.safeParse(input);
 
@@ -320,10 +323,16 @@ export async function updateBoardAction(input: unknown): Promise<ActionResult> {
     },
   });
 
+  const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
   revalidatePath("/dashboard");
 
-  return success(undefined, "Tablero actualizado.");
+  return success(
+    {
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Tablero actualizado.",
+  );
 }
 
 export async function deleteBoardAction(input: unknown): Promise<ActionResult> {
@@ -357,7 +366,7 @@ export async function deleteBoardAction(input: unknown): Promise<ActionResult> {
 
 export async function createListAction(
   input: unknown,
-): Promise<ActionResult<{ listId: string }>> {
+): Promise<ActionResult<{ listId: string; list: BoardListView; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = createListSchema.safeParse(input);
 
@@ -389,13 +398,27 @@ export async function createListAction(
     },
   });
 
-  await touchBoard(parsed.data.boardId);
+  const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success({ listId: list.id }, "Lista creada.");
+  return success(
+    {
+      listId: list.id,
+      list: {
+        id: list.id,
+        name: list.name,
+        position: list.position,
+        cards: [],
+      },
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Lista creada.",
+  );
 }
 
-export async function updateListAction(input: unknown): Promise<ActionResult> {
+export async function updateListAction(
+  input: unknown,
+): Promise<ActionResult<{ listId: string; name: string; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = updateListSchema.safeParse(input);
 
@@ -428,13 +451,22 @@ export async function updateListAction(input: unknown): Promise<ActionResult> {
     },
   });
 
-  await touchBoard(parsed.data.boardId);
+  const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Lista actualizada.");
+  return success(
+    {
+      listId: parsed.data.listId,
+      name: parsed.data.name,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Lista actualizada.",
+  );
 }
 
-export async function deleteListAction(input: unknown): Promise<ActionResult> {
+export async function deleteListAction(
+  input: unknown,
+): Promise<ActionResult<{ listId: string; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = deleteListSchema.safeParse(input);
 
@@ -464,10 +496,16 @@ export async function deleteListAction(input: unknown): Promise<ActionResult> {
     },
   });
 
-  await touchBoard(parsed.data.boardId);
+  const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Lista eliminada.");
+  return success(
+    {
+      listId: parsed.data.listId,
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Lista eliminada.",
+  );
 }
 
 export async function reorderListsAction(input: unknown): Promise<ActionResult> {
@@ -530,7 +568,9 @@ export async function reorderListsAction(input: unknown): Promise<ActionResult> 
   return success(undefined, "Orden actualizado.");
 }
 
-export async function createLabelAction(input: unknown): Promise<ActionResult> {
+export async function createLabelAction(
+  input: unknown,
+): Promise<ActionResult<{ label: LabelView; boardUpdatedAt: string }>> {
   const user = await requireUser();
   const parsed = createLabelSchema.safeParse(input);
 
@@ -548,30 +588,45 @@ export async function createLabelAction(input: unknown): Promise<ActionResult> {
     return failure("Tu rol no puede crear etiquetas.");
   }
 
-  const label = await prisma.label.findFirst({
+  const existingLabel = await prisma.label.findFirst({
     where: {
       boardId: parsed.data.boardId,
       name: parsed.data.name,
     },
   });
 
-  if (label) {
+  if (existingLabel) {
     return failure("Ya existe una etiqueta con ese nombre.");
   }
 
-  await prisma.label.create({
+  const createdLabel = await prisma.label.create({
     data: parsed.data,
   });
 
-  await touchBoard(parsed.data.boardId);
+  const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
-  return success(undefined, "Etiqueta creada.");
+  return success(
+    {
+      label: {
+        id: createdLabel.id,
+        name: createdLabel.name,
+        color: createdLabel.color,
+      },
+      boardUpdatedAt: boardUpdatedAt.toISOString(),
+    },
+    "Etiqueta creada.",
+  );
 }
 
 export async function inviteMemberAction(
   input: unknown,
-): Promise<ActionResult<{ emailSent: boolean; inviteUrl: string }>> {
+): Promise<ActionResult<{
+  emailSent: boolean;
+  inviteUrl: string;
+  invitation?: BoardInvitationView;
+  boardUpdatedAt?: string;
+}>> {
   const user = await requireUser();
   const parsed = inviteMemberSchema.safeParse(input);
 
@@ -682,12 +737,22 @@ export async function inviteMemberAction(
     const inviteUrl = buildInvitationUrl(invitation.token);
 
     if (!inviteUrl) {
+      const boardUpdatedAt = await touchBoard(parsed.data.boardId);
       revalidateInvitationPaths(parsed.data.boardId, invitation.token);
 
       return success(
         {
           emailSent: false,
           inviteUrl: `/invite/${invitation.token}`,
+          invitation: {
+            id: invitation.id,
+            email: invitation.email,
+            role: invitation.role as "OWNER" | "EDITOR" | "VIEWER",
+            status: invitation.status,
+            invitedByName: user.name,
+            expiresAt: invitation.expiresAt.toISOString(),
+          },
+          boardUpdatedAt: boardUpdatedAt.toISOString(),
         },
         "Invitación creada. Configurá APP_URL para generar el enlace público y enviarlo por email.",
       );
@@ -702,7 +767,7 @@ export async function inviteMemberAction(
       role: parsed.data.role as "EDITOR" | "VIEWER",
     });
 
-    await touchBoard(parsed.data.boardId);
+    const boardUpdatedAt = await touchBoard(parsed.data.boardId);
     revalidateInvitationPaths(parsed.data.boardId, invitation.token);
 
     if (!emailResult.sent) {
@@ -710,6 +775,15 @@ export async function inviteMemberAction(
         {
           emailSent: false,
           inviteUrl,
+          invitation: {
+            id: invitation.id,
+            email: invitation.email,
+            role: invitation.role as "OWNER" | "EDITOR" | "VIEWER",
+            status: invitation.status,
+            invitedByName: user.name,
+            expiresAt: invitation.expiresAt.toISOString(),
+          },
+          boardUpdatedAt: boardUpdatedAt.toISOString(),
         },
         emailResult.reason,
       );
@@ -719,6 +793,15 @@ export async function inviteMemberAction(
       {
         emailSent: true,
         inviteUrl,
+        invitation: {
+          id: invitation.id,
+          email: invitation.email,
+          role: invitation.role as "OWNER" | "EDITOR" | "VIEWER",
+          status: invitation.status,
+          invitedByName: user.name,
+          expiresAt: invitation.expiresAt.toISOString(),
+        },
+        boardUpdatedAt: boardUpdatedAt.toISOString(),
       },
       "Invitación enviada por email.",
     );

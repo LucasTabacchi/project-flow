@@ -21,19 +21,35 @@ export async function getBoardSyncState(boardId: string) {
 }
 
 export async function touchBoard(boardId: string) {
-  await prisma.$executeRaw`
-    UPDATE "Board"
-    SET "updatedAt" = NOW()
-    WHERE "id" = ${boardId}
-  `;
+  const board = await prisma.board.update({
+    where: {
+      id: boardId,
+    },
+    data: {
+      updatedAt: new Date(),
+    },
+    select: {
+      updatedAt: true,
+    },
+  });
+
+  return board.updatedAt;
 }
 
 export async function touchCard(cardId: string) {
-  await prisma.$executeRaw`
-    UPDATE "Card"
-    SET "updatedAt" = NOW()
-    WHERE "id" = ${cardId}
-  `;
+  const card = await prisma.card.update({
+    where: {
+      id: cardId,
+    },
+    data: {
+      updatedAt: new Date(),
+    },
+    select: {
+      updatedAt: true,
+    },
+  });
+
+  return card.updatedAt;
 }
 
 export async function pruneBoardPresence(boardId: string) {
