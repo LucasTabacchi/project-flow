@@ -8,6 +8,7 @@ import type {
   DashboardData,
   ProfilePageData,
   SearchCardView,
+  SearchContextData,
   UserSummary,
 } from "@/types";
 
@@ -30,6 +31,12 @@ type ProfileStatsRow = {
   assignedCards: number;
   completedCards: number;
   commentCount: number;
+};
+
+type SearchContextRow = {
+  boards: SearchContextData["boards"] | null;
+  labels: SearchContextData["labels"] | null;
+  members: SearchContextData["members"] | null;
 };
 
 const getAccessibleBoardDirectory = cache(async (userId: string) => {
@@ -70,13 +77,6 @@ const getAccessibleBoardIds = cache(async (userId: string) => {
   const boards = await getAccessibleBoardDirectory(userId);
   return boards.map((board) => board.boardId);
 });
-
-const userSummarySelect = {
-  id: true,
-  name: true,
-  email: true,
-  avatarUrl: true,
-} as const;
 
 type SearchCardRecord = {
   id: string;
@@ -545,58 +545,79 @@ export async function getProfilePageData(userId: string): Promise<ProfilePageDat
   };
 }
 
-export async function getSearchContext(userId: string) {
-  const boardDirectory = await getAccessibleBoardDirectory(userId);
-  const boardIds = boardDirectory.map((board) => board.boardId);
-
-  if (!boardIds.length) {
-    return {
-      boards: [],
-      members: [],
-      labels: [],
-    };
-  }
-
-  const [labels, members] = await Promise.all([
-    prisma.label.findMany({
-      where: {
-        boardId: {
-          in: boardIds,
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        color: true,
-      },
-      orderBy: {
-        name: "asc",
-      },
-    }),
-    prisma.boardMember.findMany({
-      where: {
-        boardId: {
-          in: boardIds,
-        },
-      },
-      distinct: ["userId"],
-      select: {
-        user: {
-          select: userSummarySelect,
-        },
-      },
-    }),
-  ]);
+export async function getSearchContext(userId: string): Promise<SearchContextData> {
+  const [context] = await prisma.$queryRaw<SearchContextRow[]>(Prisma.sql`
+    WITH accessible_boards AS (
+      SELECT
+        b.id,
+        b.name,
+        b.theme,
+        b."updatedAt"
+      FROM "BoardMember" bm
+      INNER JOIN "Board" b ON b.id = bm."boardId"
+      WHERE bm."userId" = ${userId}
+    ),
+    boards_json AS (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object(
+            'id', board.id,
+            'name', board.name,
+            'theme', board.theme
+          )
+          ORDER BY board."updatedAt" DESC
+        ),
+        '[]'::json
+      ) AS boards
+      FROM accessible_boards board
+    ),
+    labels_json AS (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object(
+            'id', label.id,
+            'name', label.name,
+            'color', label.color
+          )
+          ORDER BY label.name ASC
+        ),
+        '[]'::json
+      ) AS labels
+      FROM "Label" label
+      WHERE label."boardId" IN (SELECT id FROM accessible_boards)
+    ),
+    members_json AS (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object(
+            'userId', member.id,
+            'name', member.name,
+            'email', member.email,
+            'avatarUrl', member."avatarUrl"
+          )
+          ORDER BY member.name ASC
+        ),
+        '[]'::json
+      ) AS members
+      FROM (
+        SELECT DISTINCT user_record.id, user_record.name, user_record.email, user_record."avatarUrl"
+        FROM "BoardMember" bm
+        INNER JOIN "User" user_record ON user_record.id = bm."userId"
+        WHERE bm."boardId" IN (SELECT id FROM accessible_boards)
+      ) member
+    )
+    SELECT
+      boards_json.boards,
+      labels_json.labels,
+      members_json.members
+    FROM boards_json
+    CROSS JOIN labels_json
+    CROSS JOIN members_json
+  `);
 
   return {
-    boards: boardDirectory.map((board) => ({
-      id: board.id,
-      name: board.name,
-      theme: board.theme,
-    })),
-    members: members
-      .map(({ user }) => serializeUser(user))
-      .sort((left, right) => left.name.localeCompare(right.name, "es")),
-    labels,
+    boards: context?.boards ?? [],
+    labels: context?.labels ?? [],
+    members: context?.members ?? [],
   };
 }

@@ -72,7 +72,6 @@ export function SearchFilters({ initialFilters }: SearchFiltersProps) {
 
       try {
         const response = await fetch("/api/search/context", {
-          cache: "no-store",
           signal: controller.signal,
         });
 

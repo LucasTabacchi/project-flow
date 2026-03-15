@@ -122,6 +122,43 @@ export const getCurrentUser = cache(async () => {
   return session?.user ?? null;
 });
 
+export const getCurrentUserId = cache(async () => {
+  const token = await getSessionTokenFromCookie();
+
+  if (!token) {
+    return null;
+  }
+
+  const session = await prisma.session.findUnique({
+    where: {
+      tokenHash: hashSessionToken(token),
+    },
+    select: {
+      id: true,
+      userId: true,
+      expiresAt: true,
+    },
+  });
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.expiresAt <= new Date()) {
+    await prisma.session
+      .delete({
+        where: {
+          id: session.id,
+        },
+      })
+      .catch(() => undefined);
+
+    return null;
+  }
+
+  return session.userId;
+});
+
 export async function requireUser() {
   const user = await getCurrentUser();
 

@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { getSearchContext } from "@/lib/data/dashboard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const user = await getCurrentUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json(
       {
         message: "Necesitás iniciar sesión.",
@@ -20,11 +20,11 @@ export async function GET() {
     );
   }
 
-  const context = await getSearchContext(user.id);
+  const context = await getSearchContext(userId);
 
   return NextResponse.json(context, {
     headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
     },
   });
 }
