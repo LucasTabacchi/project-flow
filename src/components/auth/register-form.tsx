@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 
 import { registerAction, type AuthActionState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { buildAuthHref, getSafeRedirectTarget } from "@/lib/auth/navigation";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -21,36 +21,41 @@ function SubmitButton() {
   );
 }
 
-type RegisterFormProps = {
-  initialEmail?: string;
-  loginHref?: string;
-  redirectTo?: string;
-};
-
-export function RegisterForm({
-  initialEmail,
-  loginHref = "/login",
-  redirectTo,
-}: RegisterFormProps) {
+export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [state, formAction] = useActionState<AuthActionState | null, FormData>(
     registerAction,
     null,
   );
+  const initialEmail = searchParams.get("email");
+  const redirectTo = getSafeRedirectTarget(searchParams.get("redirectTo"));
+  const loginHref = buildAuthHref("/login", {
+    email: initialEmail,
+    redirectTo,
+  });
+  const nameError =
+    state && !state.ok ? state.fieldErrors?.name?.[0] : undefined;
+  const emailError =
+    state && !state.ok ? state.fieldErrors?.email?.[0] : undefined;
+  const passwordError =
+    state && !state.ok ? state.fieldErrors?.password?.[0] : undefined;
+  const confirmPasswordError =
+    state && !state.ok ? state.fieldErrors?.confirmPassword?.[0] : undefined;
+  const hasFieldErrors = Boolean(
+    nameError || emailError || passwordError || confirmPasswordError,
+  );
+  const generalError =
+    state && !state.ok && (!hasFieldErrors || !state.fieldErrors)
+      ? state.message
+      : undefined;
 
   useEffect(() => {
-    if (!state) {
+    if (!state?.ok) {
       return;
     }
 
-    if (state.ok) {
-      toast.success(state.message ?? "Cuenta creada.");
-      router.push(state.data?.redirectTo ?? "/dashboard");
-      router.refresh();
-      return;
-    }
-
-    toast.error(state.message);
+    router.replace(state.data?.redirectTo ?? "/dashboard");
   }, [router, state]);
 
   return (
@@ -59,11 +64,20 @@ export function RegisterForm({
         <input type="hidden" name="redirectTo" value={redirectTo} />
       ) : null}
 
+      {generalError ? (
+        <div
+          role="alert"
+          className="rounded-[20px] border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          {generalError}
+        </div>
+      ) : null}
+
       <div className="space-y-2">
         <Label htmlFor="name">Nombre</Label>
         <Input id="name" name="name" placeholder="Tu nombre" />
-        {state && !state.ok && state.fieldErrors?.name?.[0] ? (
-          <p className="text-xs text-destructive">{state.fieldErrors.name[0]}</p>
+        {nameError ? (
+          <p className="text-xs text-destructive">{nameError}</p>
         ) : null}
       </div>
 
@@ -74,10 +88,10 @@ export function RegisterForm({
           name="email"
           type="email"
           placeholder="tu@email.com"
-          defaultValue={initialEmail}
+          defaultValue={initialEmail ?? undefined}
         />
-        {state && !state.ok && state.fieldErrors?.email?.[0] ? (
-          <p className="text-xs text-destructive">{state.fieldErrors.email[0]}</p>
+        {emailError ? (
+          <p className="text-xs text-destructive">{emailError}</p>
         ) : null}
       </div>
 
@@ -85,20 +99,16 @@ export function RegisterForm({
         <div className="space-y-2">
           <Label htmlFor="password">Contraseña</Label>
           <Input id="password" name="password" type="password" />
-          {state && !state.ok && state.fieldErrors?.password?.[0] ? (
-            <p className="text-xs text-destructive">
-              {state.fieldErrors.password[0]}
-            </p>
+          {passwordError ? (
+            <p className="text-xs text-destructive">{passwordError}</p>
           ) : null}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
           <Input id="confirmPassword" name="confirmPassword" type="password" />
-          {state && !state.ok && state.fieldErrors?.confirmPassword?.[0] ? (
-            <p className="text-xs text-destructive">
-              {state.fieldErrors.confirmPassword[0]}
-            </p>
+          {confirmPasswordError ? (
+            <p className="text-xs text-destructive">{confirmPasswordError}</p>
           ) : null}
         </div>
       </div>

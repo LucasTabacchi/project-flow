@@ -9,6 +9,7 @@ import {
   type ActionResult,
   success,
 } from "@/lib/action-result";
+import { getSafeRedirectTarget } from "@/lib/auth/navigation";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db";
@@ -25,14 +26,6 @@ const REGISTER_RATE_LIMIT_MAX_ATTEMPTS = 5;
 function getFormValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
-}
-
-function getSafeRedirectTarget(value: string) {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/dashboard";
-  }
-
-  return value;
 }
 
 async function getClientAddress() {

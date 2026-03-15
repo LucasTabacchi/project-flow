@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { Eye, EyeOff, LoaderCircle, ShieldCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { toast } from "sonner";
 
 import { loginAction, type AuthActionState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { buildAuthHref, getSafeRedirectTarget } from "@/lib/auth/navigation";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -29,23 +29,20 @@ function SubmitButton() {
   );
 }
 
-type LoginFormProps = {
-  initialEmail?: string;
-  redirectTo?: string;
-  registerHref?: string;
-};
-
-export function LoginForm({
-  initialEmail,
-  redirectTo,
-  registerHref = "/register",
-}: LoginFormProps) {
+export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [state, formAction] = useActionState<AuthActionState | null, FormData>(
     loginAction,
     null,
   );
+  const email = searchParams.get("email");
+  const redirectTo = getSafeRedirectTarget(searchParams.get("redirectTo"));
+  const registerHref = buildAuthHref("/register", {
+    email,
+    redirectTo,
+  });
 
   const emailError =
     state && !state.ok ? state.fieldErrors?.email?.[0] : undefined;
@@ -62,9 +59,7 @@ export function LoginForm({
       return;
     }
 
-    toast.success(state.message ?? "Sesión iniciada.");
     router.replace(state.data?.redirectTo ?? "/dashboard");
-    router.refresh();
   }, [router, state]);
 
   return (
@@ -108,7 +103,7 @@ export function LoginForm({
           autoCapitalize="none"
           spellCheck={false}
           autoFocus
-          defaultValue={initialEmail}
+          defaultValue={email ?? undefined}
           required
           aria-invalid={Boolean(emailError)}
           aria-describedby={emailError ? "login-email-error" : undefined}

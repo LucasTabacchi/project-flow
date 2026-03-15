@@ -1,9 +1,5 @@
-import { redirect } from "next/navigation";
+import { LoginScreen } from "@/components/auth/login-screen";
 
-import { getCurrentUser } from "@/lib/auth/session";
-
-export default async function HomePage() {
-  const user = await getCurrentUser();
-
-  redirect(user ? "/dashboard" : "/login");
+export default function HomePage() {
+  return <LoginScreen />;
 }
