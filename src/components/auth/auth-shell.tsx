@@ -7,6 +7,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 
 type AsideLink = {
@@ -52,6 +53,9 @@ export function AuthShell({
   return (
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,35rem)] 2xl:grid-cols-[1.15fr_35rem]">
       <section className="relative hidden overflow-hidden border-r border-border/60 px-8 py-8 lg:block xl:px-10 xl:py-10">
+        <div className="relative z-10 mb-6 flex justify-end">
+          <ThemeToggle />
+        </div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.22),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(249,115,22,0.18),transparent_26%)]" />
         <div className="relative flex h-full flex-col justify-between">
           <div className="space-y-8">
@@ -167,6 +171,9 @@ export function AuthShell({
 
       <section className="flex items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="w-full max-w-2xl lg:max-w-xl">
+          <div className="mb-4 flex justify-end lg:hidden">
+            <ThemeToggle />
+          </div>
           <div className="mb-8 flex items-center justify-center gap-3 lg:justify-start">
             <div className="flex size-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-teal-500 via-cyan-400 to-orange-400 text-white shadow-lg">
               <KanbanSquare className="size-6" />
