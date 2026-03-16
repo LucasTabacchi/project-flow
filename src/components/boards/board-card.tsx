@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarClock, MessageSquare, Paperclip, SquareCheckBig } from "lucide-react";
@@ -12,11 +13,15 @@ import type { CardSummaryView } from "@/types";
 
 type BoardCardProps = {
   card: CardSummaryView;
-  onOpen: () => void;
+  onOpenCard: (cardId: string) => void;
   disabled?: boolean;
 };
 
-export function BoardCard({ card, onOpen, disabled = false }: BoardCardProps) {
+function BoardCardComponent({
+  card,
+  onOpenCard,
+  disabled = false,
+}: BoardCardProps) {
   const {
     attributes,
     listeners,
@@ -37,9 +42,9 @@ export function BoardCard({ card, onOpen, disabled = false }: BoardCardProps) {
     <button
       ref={setNodeRef}
       type="button"
-      onClick={onOpen}
+      onClick={() => onOpenCard(card.id)}
       className={cn(
-        "glass-panel w-full rounded-[24px] border border-border p-4 text-left transition hover:-translate-y-0.5",
+        "focus-ring glass-panel w-full rounded-[24px] border border-border p-4 text-left transition hover:-translate-y-0.5",
         isDragging && "opacity-60 shadow-2xl",
       )}
       style={{
@@ -109,3 +114,5 @@ export function BoardCard({ card, onOpen, disabled = false }: BoardCardProps) {
     </button>
   );
 }
+
+export const BoardCard = memo(BoardCardComponent);

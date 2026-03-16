@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import { useBoardStore } from "@/stores/board-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +14,14 @@ import {
 } from "@/components/ui/select";
 import { CARD_PRIORITIES, CARD_STATUSES } from "@/lib/constants";
 import { getPriorityLabel, getStatusLabel } from "@/lib/utils";
-import type { BoardPageData } from "@/types";
+import type { BoardMemberView, LabelView } from "@/types";
 
 type BoardFiltersProps = {
-  board: BoardPageData;
+  labels: LabelView[];
+  members: BoardMemberView[];
 };
 
-export function BoardFilters({ board }: BoardFiltersProps) {
+function BoardFiltersComponent({ labels, members }: BoardFiltersProps) {
   const filters = useBoardStore((state) => state.filters);
   const setFilters = useBoardStore((state) => state.setFilters);
 
@@ -39,7 +42,7 @@ export function BoardFilters({ board }: BoardFiltersProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="ALL">Todas las etiquetas</SelectItem>
-          {board.labels.map((label) => (
+          {labels.map((label) => (
             <SelectItem key={label.id} value={label.id}>
               {label.name}
             </SelectItem>
@@ -56,7 +59,7 @@ export function BoardFilters({ board }: BoardFiltersProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="ALL">Todos</SelectItem>
-          {board.members.map((member) => (
+          {members.map((member) => (
             <SelectItem key={member.userId} value={member.userId}>
               {member.name}
             </SelectItem>
@@ -113,3 +116,5 @@ export function BoardFilters({ board }: BoardFiltersProps) {
     </div>
   );
 }
+
+export const BoardFilters = memo(BoardFiltersComponent);

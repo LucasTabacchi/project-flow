@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import {
+  getBoardPresence,
+  publishBoardPresence,
   pruneBoardPresence,
   removeBoardPresence,
   upsertBoardPresence,
@@ -97,6 +99,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }),
   ]);
 
+  const presence = await getBoardPresence(boardId);
+  publishBoardPresence(boardId, presence);
+
   return new Response(null, {
     status: 204,
   });
@@ -127,6 +132,9 @@ export async function DELETE(request: Request, { params }: RouteContext) {
       clientId: parsed.data.clientId,
     }),
   ]);
+
+  const presence = await getBoardPresence(boardId);
+  publishBoardPresence(boardId, presence);
 
   return new Response(null, {
     status: 204,

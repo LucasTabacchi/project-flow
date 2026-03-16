@@ -164,6 +164,21 @@ export type SearchCardView = {
   isOverdue: boolean;
 };
 
+export type CalendarCardView = {
+  id: string;
+  boardId: string;
+  boardName: string;
+  boardTheme: string;
+  listId: string;
+  listName: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  status: CardStatus;
+  priority: CardPriority;
+  isOverdue: boolean;
+};
+
 export type SearchContextData = {
   boards: Array<{
     id: string;

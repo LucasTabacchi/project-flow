@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import {
   format,
@@ -17,7 +18,6 @@ import {
   Clock3,
   Layers3,
 } from "lucide-react";
-import { DayPicker } from "react-day-picker";
 
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +27,11 @@ import {
   getBoardTheme,
   getPriorityLabel,
   getStatusLabel,
-  isCardOverdue,
 } from "@/lib/utils";
-import type { SearchCardView } from "@/types";
+import type { CalendarCardView } from "@/types";
 
 type CalendarViewProps = {
-  cards: SearchCardView[];
+  cards: CalendarCardView[];
 };
 
 type CalendarMetricProps = {
@@ -53,7 +52,19 @@ function toLocalDateKey(value: Date | string) {
   return format(date, "yyyy-MM-dd");
 }
 
-function compareCardDates(left: SearchCardView, right: SearchCardView) {
+const CalendarMonthPicker = dynamic(
+  () =>
+    import("@/components/calendar/calendar-month-picker").then(
+      (module) => module.CalendarMonthPicker,
+    ),
+  {
+    loading: () => (
+      <div className="h-[360px] animate-pulse rounded-[28px] bg-secondary/60" />
+    ),
+  },
+);
+
+function compareCardDates(left: CalendarCardView, right: CalendarCardView) {
   if (!left.dueDate || !right.dueDate) {
     return 0;
   }
@@ -91,7 +102,7 @@ function CalendarMetric({
   );
 }
 
-function AgendaCard({ card }: { card: SearchCardView }) {
+function AgendaCard({ card }: { card: CalendarCardView }) {
   const theme = getBoardTheme(card.boardTheme);
 
   return (
@@ -169,7 +180,7 @@ export function CalendarView({ cards }: CalendarViewProps) {
   );
 
   const eventsByDate = useMemo(() => {
-    const map = new Map<string, SearchCardView[]>();
+    const map = new Map<string, CalendarCardView[]>();
 
     cards.forEach((card) => {
       if (!card.dueDate) {
@@ -185,37 +196,63 @@ export function CalendarView({ cards }: CalendarViewProps) {
 
     return map;
   }, [cards]);
-
   const selectedKey = selectedDate ? toLocalDateKey(selectedDate) : undefined;
-  const selectedCards = selectedKey ? eventsByDate.get(selectedKey) ?? [] : [];
-  const selectedLabel = selectedDate
-    ? format(selectedDate, "EEEE d 'de' MMMM", { locale: es })
-    : "Sin fecha seleccionada";
-  const visibleMonthCards = cards.filter((card) => {
-    if (!card.dueDate) {
-      return false;
-    }
+  const selectedCards = useMemo(
+    () => (selectedKey ? eventsByDate.get(selectedKey) ?? [] : []),
+    [eventsByDate, selectedKey],
+  );
+  const selectedLabel = useMemo(
+    () =>
+      selectedDate
+        ? format(selectedDate, "EEEE d 'de' MMMM", { locale: es })
+        : "Sin fecha seleccionada",
+    [selectedDate],
+  );
+  const visibleMonthCards = useMemo(
+    () =>
+      cards.filter((card) => {
+        if (!card.dueDate) {
+          return false;
+        }
 
-    return isSameMonth(toLocalCalendarDate(card.dueDate), visibleMonth);
-  });
-  const visibleMonthHighPriorityCards = visibleMonthCards.filter(
-    (card) => card.priority === "HIGH",
-  ).length;
-  const visibleMonthOverdueCards = visibleMonthCards.filter(
-    (card) => card.isOverdue,
-  ).length;
-  const nextDates = Array.from(eventsByDate.entries())
-    .filter(([date]) => parseISO(date) >= today)
-    .sort(([left], [right]) => parseISO(left).getTime() - parseISO(right).getTime())
-    .slice(0, 5);
-  const dayModifiers = useMemo(
-    () => ({
-      hasEvents: Array.from(eventsByDate.keys()).map((value) => parseISO(value)),
-      hasOverdue: cards
-        .filter((card) => card.dueDate && isCardOverdue(card.dueDate, card.status))
+        return isSameMonth(toLocalCalendarDate(card.dueDate), visibleMonth);
+      }),
+    [cards, visibleMonth],
+  );
+  const visibleMonthHighPriorityCards = useMemo(
+    () => visibleMonthCards.filter((card) => card.priority === "HIGH").length,
+    [visibleMonthCards],
+  );
+  const visibleMonthOverdueCards = useMemo(
+    () => visibleMonthCards.filter((card) => card.isOverdue).length,
+    [visibleMonthCards],
+  );
+  const nextDates = useMemo(
+    () =>
+      Array.from(eventsByDate.entries())
+        .filter(([date]) => parseISO(date) >= today)
+        .sort(([left], [right]) => parseISO(left).getTime() - parseISO(right).getTime())
+        .slice(0, 5),
+    [eventsByDate, today],
+  );
+  const eventDates = useMemo(
+    () => Array.from(eventsByDate.keys()).map((value) => parseISO(value)),
+    [eventsByDate],
+  );
+  const overdueDates = useMemo(
+    () =>
+      cards
+        .filter((card) => card.dueDate && card.isOverdue)
         .map((card) => parseISO(card.dueDate!)),
-    }),
-    [cards, eventsByDate],
+    [cards],
+  );
+  const prioritizedCards = useMemo(
+    () =>
+      cards
+        .filter((card) => card.isOverdue || card.priority === "HIGH")
+        .sort(compareCardDates)
+        .slice(0, 6),
+    [cards],
   );
 
   function handleDateSelection(date: Date | undefined) {
@@ -275,45 +312,13 @@ export function CalendarView({ cards }: CalendarViewProps) {
           </div>
 
           <CardContent className="px-4 pb-5 pt-5 sm:px-6">
-            <DayPicker
-              mode="single"
-              showOutsideDays
+            <CalendarMonthPicker
               month={visibleMonth}
-              selected={selectedDate}
+              selectedDate={selectedDate}
+              eventDates={eventDates}
+              overdueDates={overdueDates}
               onSelect={handleDateSelection}
               onMonthChange={handleMonthChange}
-              modifiers={dayModifiers}
-              modifiersClassNames={{
-                selected: "bg-primary text-primary-foreground shadow-sm",
-                today: "ring-1 ring-primary/40",
-                hasEvents:
-                  "bg-primary/8 text-primary dark:bg-primary/15 dark:text-primary",
-                hasOverdue:
-                  "bg-amber-500/12 text-amber-900 dark:bg-amber-500/18 dark:text-amber-200",
-              }}
-              classNames={{
-                root: "w-full",
-                months: "w-full",
-                month: "space-y-5",
-                month_caption: "flex items-center justify-between gap-4 px-2",
-                caption_label: "font-display text-xl font-semibold capitalize",
-                nav: "flex items-center gap-2",
-                button_previous:
-                  "flex size-10 items-center justify-center rounded-2xl border border-border bg-background/80 transition hover:bg-secondary",
-                button_next:
-                  "flex size-10 items-center justify-center rounded-2xl border border-border bg-background/80 transition hover:bg-secondary",
-                month_grid: "w-full border-separate border-spacing-y-2",
-                weekdays: "grid grid-cols-7 gap-2 px-1",
-                weekday:
-                  "text-center text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground",
-                week: "grid grid-cols-7 gap-2",
-                day: "flex justify-center",
-                day_button:
-                  "flex size-12 items-center justify-center rounded-2xl text-sm font-medium transition hover:bg-secondary hover:text-foreground",
-                outside: "text-muted-foreground/35",
-                disabled: "opacity-35",
-                hidden: "invisible",
-              }}
             />
           </CardContent>
         </Card>
@@ -440,12 +445,8 @@ export function CalendarView({ cards }: CalendarViewProps) {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {cards.filter((card) => card.isOverdue || card.priority === "HIGH").length ? (
-              cards
-                .filter((card) => card.isOverdue || card.priority === "HIGH")
-                .sort(compareCardDates)
-                .slice(0, 6)
-                .map((card) => (
+            {prioritizedCards.length ? (
+              prioritizedCards.map((card) => (
                   <Link
                     key={card.id}
                     href={`/boards/${card.boardId}`}

@@ -79,47 +79,69 @@ function moveCardBetweenLists(
     return lists;
   }
 
-  const activeCard = lists[activeListIndex].cards.find(
+  const activeCardIndex = lists[activeListIndex].cards.findIndex(
     (card) => card.id === activeCardId,
   );
 
-  if (!activeCard) {
+  if (activeCardIndex < 0) {
     return lists;
   }
 
-  const nextLists = lists.map((list) => ({
-    ...list,
-    cards: [...list.cards],
-  }));
-
-  nextLists[activeListIndex].cards = nextLists[activeListIndex].cards.filter(
-    (card) => card.id !== activeCardId,
-  );
+  const activeCard = lists[activeListIndex].cards[activeCardIndex];
 
   if (isListIdentifier(overId)) {
     const overListId = getEntityId(overId);
-    const overListIndex = nextLists.findIndex((list) => list.id === overListId);
+    const overListIndex = lists.findIndex((list) => list.id === overListId);
 
     if (overListIndex < 0) {
       return lists;
     }
 
-    nextLists[overListIndex].cards.push({
-      ...activeCard,
-      listId: overListId,
-    });
+    if (
+      activeListIndex === overListIndex &&
+      activeCardIndex === lists[activeListIndex].cards.length - 1
+    ) {
+      return lists;
+    }
 
-    return nextLists.map((list) => ({
-      ...list,
-      cards: list.cards.map((card) => ({
-        ...card,
-        listId: list.id,
-      })),
-    }));
+    const nextLists = [...lists];
+
+    if (activeListIndex === overListIndex) {
+      nextLists[activeListIndex] = {
+        ...lists[activeListIndex],
+        cards: arrayMove(
+          lists[activeListIndex].cards,
+          activeCardIndex,
+          lists[activeListIndex].cards.length - 1,
+        ),
+      };
+
+      return nextLists;
+    }
+
+    const sourceCards = [...lists[activeListIndex].cards];
+    sourceCards.splice(activeCardIndex, 1);
+
+    nextLists[activeListIndex] = {
+      ...lists[activeListIndex],
+      cards: sourceCards,
+    };
+    nextLists[overListIndex] = {
+      ...lists[overListIndex],
+      cards: [
+        ...lists[overListIndex].cards,
+        {
+          ...activeCard,
+          listId: overListId,
+        },
+      ],
+    };
+
+    return nextLists;
   }
 
   const overCardId = getEntityId(overId);
-  const overListIndex = nextLists.findIndex((list) =>
+  const overListIndex = lists.findIndex((list) =>
     list.cards.some((card) => card.id === overCardId),
   );
 
@@ -127,14 +149,42 @@ function moveCardBetweenLists(
     return lists;
   }
 
-  const overCardIndex = nextLists[overListIndex].cards.findIndex(
+  const overCardIndex = lists[overListIndex].cards.findIndex(
     (card) => card.id === overCardId,
   );
 
-  nextLists[overListIndex].cards.splice(overCardIndex, 0, {
+  if (overCardIndex < 0 || activeCardId === overCardId) {
+    return lists;
+  }
+
+  const nextLists = [...lists];
+
+  if (activeListIndex === overListIndex) {
+    nextLists[activeListIndex] = {
+      ...lists[activeListIndex],
+      cards: arrayMove(lists[activeListIndex].cards, activeCardIndex, overCardIndex),
+    };
+
+    return nextLists;
+  }
+
+  const sourceCards = [...lists[activeListIndex].cards];
+  sourceCards.splice(activeCardIndex, 1);
+
+  const destinationCards = [...lists[overListIndex].cards];
+  destinationCards.splice(overCardIndex, 0, {
     ...activeCard,
-    listId: nextLists[overListIndex].id,
+    listId: lists[overListIndex].id,
   });
+
+  nextLists[activeListIndex] = {
+    ...lists[activeListIndex],
+    cards: sourceCards,
+  };
+  nextLists[overListIndex] = {
+    ...lists[overListIndex],
+    cards: destinationCards,
+  };
 
   return nextLists;
 }
@@ -190,6 +240,10 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
     filters.overdueOnly;
 
   const visibleLists = useMemo(() => {
+    if (!isFilteredView) {
+      return currentBoard.lists;
+    }
+
     const query = deferredQuery.trim().toLowerCase();
 
     return currentBoard.lists
@@ -225,6 +279,32 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       }))
       .filter((list) => !isFilteredView || list.cards.length > 0);
   }, [currentBoard.lists, deferredQuery, filters, isFilteredView]);
+  const boardHeaderData = useMemo(
+    () => ({
+      id: currentBoard.id,
+      name: currentBoard.name,
+      description: currentBoard.description,
+      theme: currentBoard.theme,
+      role: currentBoard.role,
+      permissions: currentBoard.permissions,
+      labels: currentBoard.labels,
+      members: currentBoard.members,
+      presence: currentBoard.presence,
+      stats: currentBoard.stats,
+    }),
+    [
+      currentBoard.description,
+      currentBoard.id,
+      currentBoard.labels,
+      currentBoard.members,
+      currentBoard.name,
+      currentBoard.permissions,
+      currentBoard.presence,
+      currentBoard.role,
+      currentBoard.stats,
+      currentBoard.theme,
+    ],
+  );
 
   async function persistCardPositions(nextLists: BoardListView[]) {
     const result = await reorderCardsAction({
@@ -268,6 +348,10 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
     }
 
     const nextLists = moveCardBetweenLists(currentBoard.lists, activeId, overId);
+    if (nextLists === currentBoard.lists) {
+      return;
+    }
+
     setLists(nextLists);
   }
 
@@ -324,14 +408,14 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <BoardHeader board={currentBoard} />
+      <BoardHeader board={boardHeaderData} />
       <BoardRealtimeSync
         boardId={currentBoard.id}
         updatedAt={currentBoard.updatedAt}
         activeCardId={selectedCardId}
         pauseSync={Boolean(activeCard || activeList || isPending)}
       />
-      <BoardFilters board={currentBoard} />
+      <BoardFilters labels={currentBoard.labels} members={currentBoard.members} />
 
       {isFilteredView ? (
         <div className="flex flex-col items-start gap-2 rounded-[24px] border border-dashed border-border bg-card/70 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-3">

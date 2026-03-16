@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { memo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CircleCheckBig,
@@ -49,11 +49,25 @@ import { getBoardTheme, getRoleLabel } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardPageData } from "@/types";
 
+type BoardHeaderData = Pick<
+  BoardPageData,
+  | "id"
+  | "name"
+  | "description"
+  | "theme"
+  | "role"
+  | "permissions"
+  | "labels"
+  | "members"
+  | "presence"
+  | "stats"
+>;
+
 type BoardHeaderProps = {
-  board: BoardPageData;
+  board: BoardHeaderData;
 };
 
-export function BoardHeader({ board }: BoardHeaderProps) {
+function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const router = useRouter();
   const mutateBoard = useBoardStore((state) => state.mutateBoard);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -410,3 +424,5 @@ export function BoardHeader({ board }: BoardHeaderProps) {
     </>
   );
 }
+
+export const BoardHeader = memo(BoardHeaderComponent);

@@ -144,7 +144,7 @@ export function AppHeader({ user }: AppHeaderProps) {
               aria-expanded={isMobileNavOpen}
               aria-label="Abrir navegación"
               onClick={() => setIsMobileNavOpen(true)}
-              className="flex size-10 items-center justify-center rounded-2xl border border-border bg-card/80 transition hover:bg-secondary xl:hidden"
+              className="focus-ring flex size-10 items-center justify-center rounded-2xl border border-border bg-card/80 transition hover:bg-secondary xl:hidden"
             >
               <Menu className="size-4" />
             </button>
@@ -161,7 +161,7 @@ export function AppHeader({ user }: AppHeaderProps) {
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <Link
               href="/dashboard"
-              className="hidden items-center gap-2 rounded-2xl border border-border bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground transition hover:bg-secondary/80 md:inline-flex"
+              className="focus-ring hidden items-center gap-2 rounded-2xl border border-border bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground transition hover:bg-secondary/80 md:inline-flex"
             >
               <Plus className="size-4" />
               Nuevo tablero
@@ -169,7 +169,7 @@ export function AppHeader({ user }: AppHeaderProps) {
             <Link
               href="/dashboard"
               aria-label="Ir al dashboard"
-              className="inline-flex size-10 items-center justify-center rounded-2xl border border-border bg-secondary text-secondary-foreground transition hover:bg-secondary/80 md:hidden"
+              className="focus-ring inline-flex size-10 items-center justify-center rounded-2xl border border-border bg-secondary text-secondary-foreground transition hover:bg-secondary/80 md:hidden"
             >
               <Plus className="size-4" />
             </Link>
@@ -177,7 +177,7 @@ export function AppHeader({ user }: AppHeaderProps) {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="glass-panel flex shrink-0 items-center gap-3 rounded-2xl border border-border px-2.5 py-2 text-left sm:px-3">
+                <button className="focus-ring glass-panel flex shrink-0 items-center gap-3 rounded-2xl border border-border px-2.5 py-2 text-left sm:px-3">
                   <UserAvatar name={user.name} src={user.avatarUrl} className="size-10" />
                   <div className="hidden min-w-0 sm:block">
                     <div className="truncate text-sm font-semibold">{user.name}</div>
@@ -245,7 +245,7 @@ export function AppHeader({ user }: AppHeaderProps) {
                 type="button"
                 aria-label="Cerrar navegación"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                className="focus-ring rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
               >
                 <X className="size-4" />
               </button>
@@ -272,7 +272,7 @@ export function AppHeader({ user }: AppHeaderProps) {
                     href={item.href}
                     onClick={() => setIsMobileNavOpen(false)}
                     className={cn(
-                      "group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground",
+                      "focus-ring group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground",
                       isActive && "bg-secondary text-foreground shadow-sm",
                     )}
                   >

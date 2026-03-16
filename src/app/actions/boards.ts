@@ -12,7 +12,7 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { requireUser } from "@/lib/auth/session";
-import { touchBoard } from "@/lib/board-realtime";
+import { publishBoardRemoved, touchBoard } from "@/lib/board-realtime";
 import { prisma } from "@/lib/db";
 import { buildInvitationUrl, sendBoardInvitationEmail } from "@/lib/email";
 import { canEditBoard, canManageMembers } from "@/lib/permissions";
@@ -358,6 +358,7 @@ export async function deleteBoardAction(input: unknown): Promise<ActionResult> {
       id: parsed.data.boardId,
     },
   });
+  publishBoardRemoved(parsed.data.boardId);
 
   revalidatePath("/dashboard");
 

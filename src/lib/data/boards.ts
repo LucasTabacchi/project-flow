@@ -1,4 +1,6 @@
 import { getBoardPresence } from "@/lib/board-realtime";
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/db";
 import {
   canDeleteBoard,
@@ -78,15 +80,25 @@ function serializeCardSummary(card: {
       color: LabelView["color"];
     };
   }>;
-  comments: Array<{ id: string }>;
-  attachments: Array<{ id: string }>;
-  checklists: Array<{
+  comments?: Array<{ id: string }>;
+  attachments?: Array<{ id: string }>;
+  checklists?: Array<{
     items: Array<{
       isCompleted: boolean;
     }>;
   }>;
+  _count?: {
+    comments: number;
+    attachments: number;
+  };
+  checklistCompleted?: number;
+  checklistTotal?: number;
 }): CardSummaryView {
-  const checklistItems = card.checklists.flatMap((checklist) => checklist.items);
+  const checklistItems = card.checklists?.flatMap((checklist) => checklist.items) ?? [];
+  const checklistCompleted =
+    card.checklistCompleted ??
+    checklistItems.filter((item) => item.isCompleted).length;
+  const checklistTotal = card.checklistTotal ?? checklistItems.length;
 
   return {
     id: card.id,
@@ -98,12 +110,46 @@ function serializeCardSummary(card: {
     priority: card.priority,
     labels: serializeLabels(card.cardLabels),
     assignees: card.assignments.map(({ user }) => serializeUser(user)),
-    commentCount: card.comments.length,
-    attachmentCount: card.attachments.length,
-    checklistCompleted: checklistItems.filter((item) => item.isCompleted).length,
-    checklistTotal: checklistItems.length,
+    commentCount: card._count?.comments ?? card.comments?.length ?? 0,
+    attachmentCount: card._count?.attachments ?? card.attachments?.length ?? 0,
+    checklistCompleted,
+    checklistTotal,
     updatedAt: card.updatedAt.toISOString(),
   };
+}
+
+type ChecklistStatsRow = {
+  cardId: string;
+  checklistCompleted: number;
+  checklistTotal: number;
+};
+
+function toChecklistStatsMap(rows: ChecklistStatsRow[]) {
+  return new Map(
+    rows.map((row) => [
+      row.cardId,
+      {
+        checklistCompleted: row.checklistCompleted,
+        checklistTotal: row.checklistTotal,
+      },
+    ]),
+  );
+}
+
+async function getBoardChecklistStats(boardId: string) {
+  const rows = await prisma.$queryRaw<ChecklistStatsRow[]>(Prisma.sql`
+    SELECT
+      card.id AS "cardId",
+      COUNT(item.id) FILTER (WHERE item."isCompleted")::int AS "checklistCompleted",
+      COUNT(item.id)::int AS "checklistTotal"
+    FROM "Card" card
+    LEFT JOIN "CardChecklist" checklist ON checklist."cardId" = card.id
+    LEFT JOIN "ChecklistItem" item ON item."checklistId" = checklist.id
+    WHERE card."boardId" = ${boardId}
+    GROUP BY card.id
+  `);
+
+  return toChecklistStatsMap(rows);
 }
 
 export async function getBoardCardSummary(
@@ -275,37 +321,31 @@ export async function getBoardPageData(
       select: {
         role: true,
         board: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            theme: true,
+            backgroundColor: true,
+            updatedAt: true,
             labels: {
               orderBy: {
                 name: "asc",
+              },
+              select: {
+                id: true,
+                name: true,
+                color: true,
               },
             },
             members: {
               orderBy: {
                 createdAt: "asc",
               },
-              include: {
+              select: {
+                role: true,
                 user: {
                   select: userSummarySelect,
-                },
-              },
-            },
-            invitations: {
-              where: {
-                status: "PENDING",
-                expiresAt: {
-                  gt: new Date(),
-                },
-              },
-              orderBy: {
-                createdAt: "desc",
-              },
-              include: {
-                invitedBy: {
-                  select: {
-                    name: true,
-                  },
                 },
               },
             },
@@ -313,41 +353,45 @@ export async function getBoardPageData(
               orderBy: {
                 position: "asc",
               },
-              include: {
+              select: {
+                id: true,
+                name: true,
+                position: true,
                 cards: {
                   orderBy: {
                     position: "asc",
                   },
-                  include: {
+                  select: {
+                    id: true,
+                    listId: true,
+                    title: true,
+                    description: true,
+                    dueDate: true,
+                    status: true,
+                    priority: true,
+                    updatedAt: true,
                     assignments: {
-                      include: {
+                      select: {
                         user: {
                           select: userSummarySelect,
                         },
                       },
                     },
                     cardLabels: {
-                      include: {
-                        label: true,
-                      },
-                    },
-                    comments: {
                       select: {
-                        id: true,
-                      },
-                    },
-                    attachments: {
-                      select: {
-                        id: true,
-                      },
-                    },
-                    checklists: {
-                      include: {
-                        items: {
+                        label: {
                           select: {
-                            isCompleted: true,
+                            id: true,
+                            name: true,
+                            color: true,
                           },
                         },
+                      },
+                    },
+                    _count: {
+                      select: {
+                        comments: true,
+                        attachments: true,
                       },
                     },
                   },
@@ -367,6 +411,7 @@ export async function getBoardPageData(
 
   const role = membership.role as BoardRole;
   const board = membership.board;
+  const checklistStatsByCardId = await getBoardChecklistStats(board.id);
   const members: BoardMemberView[] = board.members.map((member) => ({
     ...serializeUser(member.user),
     role: member.role as BoardRole,
@@ -376,7 +421,15 @@ export async function getBoardPageData(
     id: list.id,
     name: list.name,
     position: list.position,
-    cards: list.cards.map(serializeCardSummary),
+    cards: list.cards.map((card) => {
+      const checklistStats = checklistStatsByCardId.get(card.id);
+
+      return serializeCardSummary({
+        ...card,
+        checklistCompleted: checklistStats?.checklistCompleted ?? 0,
+        checklistTotal: checklistStats?.checklistTotal ?? 0,
+      });
+    }),
   }));
 
   return {
@@ -398,14 +451,7 @@ export async function getBoardPageData(
     })),
     members,
     presence,
-    invitations: board.invitations.map((invitation) => ({
-      id: invitation.id,
-      email: invitation.email,
-      role: invitation.role as BoardRole,
-      status: invitation.status,
-      invitedByName: invitation.invitedBy.name,
-      expiresAt: invitation.expiresAt.toISOString(),
-    })),
+    invitations: [],
     stats: buildStats(members, lists),
     lists,
     updatedAt: board.updatedAt.toISOString(),

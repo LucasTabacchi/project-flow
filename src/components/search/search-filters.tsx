@@ -1,18 +1,9 @@
-"use client";
-
-import { useEffect, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { CARD_PRIORITIES, CARD_STATUSES } from "@/lib/constants";
 import { getPriorityLabel, getStatusLabel } from "@/lib/utils";
 import type { SearchContextData } from "@/types";
@@ -30,189 +21,156 @@ type SearchFiltersProps = {
   };
 };
 
-function buildSearchHref(pathname: string, params: URLSearchParams) {
-  const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function syncParam(params: URLSearchParams, key: string, value: string) {
-  if (!value || value === "ALL" || value === "false") {
-    params.delete(key);
-    return;
-  }
-
-  params.set(key, value);
-}
-
 export function SearchFilters({
   context,
   initialFilters,
 }: SearchFiltersProps) {
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = useState(initialFilters.q);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const currentParams = new URLSearchParams(searchParams.toString());
-      const nextParams = new URLSearchParams(searchParams.toString());
-
-      syncParam(nextParams, "q", query.trim());
-
-      const currentHref = buildSearchHref(pathname, currentParams);
-      const nextHref = buildSearchHref(pathname, nextParams);
-
-      if (currentHref === nextHref) {
-        return;
-      }
-
-      startTransition(() => {
-        router.replace(nextHref, { scroll: false });
-      });
-    }, 250);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [pathname, query, router, searchParams, startTransition]);
-
-  function updateFilter(key: string, value: string) {
-    const currentParams = new URLSearchParams(searchParams.toString());
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    syncParam(nextParams, key, value);
-
-    const currentHref = buildSearchHref(pathname, currentParams);
-    const nextHref = buildSearchHref(pathname, nextParams);
-
-    if (currentHref === nextHref) {
-      return;
-    }
-
-    startTransition(() => {
-      router.replace(nextHref, { scroll: false });
-    });
-  }
+  const hasAdvancedFilters = Boolean(
+    initialFilters.boardId ||
+      initialFilters.assigneeId ||
+      initialFilters.labelId ||
+      initialFilters.priority ||
+      initialFilters.status ||
+      initialFilters.overdue === "true",
+  );
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Buscar tarjetas</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Encontrá trabajo por texto, etiquetas, prioridad, responsable o tablero.
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))]">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Título, descripción o nombre del tablero"
-          />
+    <Card>
+      <CardHeader>
+        <CardTitle>Buscar tarjetas</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Encontrá trabajo por texto y abrí filtros avanzados sólo cuando hagan
+          falta.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form action="/search" method="get" className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <Input
+              name="q"
+              defaultValue={initialFilters.q}
+              placeholder="Título, descripción o nombre del tablero"
+            />
+            <Button type="submit" className="w-full lg:w-auto">
+              Buscar
+            </Button>
+            <Link
+              href="/search"
+              className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-border bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground transition-all duration-200 hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/60 lg:w-auto"
+            >
+              Limpiar filtros
+            </Link>
+          </div>
 
-          <Select
-            value={initialFilters.boardId || "ALL"}
-            onValueChange={(value) => updateFilter("boardId", value)}
+          <details
+            open={hasAdvancedFilters}
+            className="rounded-[28px] border border-border bg-background/72"
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Tablero" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos los tableros</SelectItem>
-              {context.boards.map((board) => (
-                <SelectItem key={board.id} value={board.id}>
-                  {board.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <summary className="cursor-pointer list-none px-4 py-4 text-sm font-semibold text-foreground marker:hidden">
+              <span className="inline-flex items-center gap-2">
+                Filtros avanzados
+                <span className="text-muted-foreground">
+                  {hasAdvancedFilters
+                    ? "Activos en esta búsqueda"
+                    : "Responsable, estado, prioridad o vencimiento"}
+                </span>
+              </span>
+            </summary>
 
-          <Select
-            value={initialFilters.assigneeId || "ALL"}
-            onValueChange={(value) => updateFilter("assigneeId", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Responsable" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos</SelectItem>
-              {context.members.map((member) => (
-                <SelectItem key={member.userId} value={member.userId}>
-                  {member.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <div className="grid gap-3 border-t border-border px-4 py-4 sm:grid-cols-2 xl:grid-cols-5">
+              <label className="space-y-2 text-sm font-medium text-foreground">
+                <span className="block text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Tablero
+                </span>
+                <NativeSelect name="boardId" defaultValue={initialFilters.boardId}>
+                  <option value="">Todos los tableros</option>
+                  {context.boards.map((board) => (
+                    <option key={board.id} value={board.id}>
+                      {board.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
 
-          <Select
-            value={initialFilters.labelId || "ALL"}
-            onValueChange={(value) => updateFilter("labelId", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Etiqueta" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todas</SelectItem>
-              {context.labels.map((label) => (
-                <SelectItem key={label.id} value={label.id}>
-                  {label.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <label className="space-y-2 text-sm font-medium text-foreground">
+                <span className="block text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Responsable
+                </span>
+                <NativeSelect
+                  name="assigneeId"
+                  defaultValue={initialFilters.assigneeId}
+                >
+                  <option value="">Todos</option>
+                  {context.members.map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {member.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
 
-          <Select
-            value={initialFilters.priority || "ALL"}
-            onValueChange={(value) => updateFilter("priority", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Prioridad" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todas</SelectItem>
-              {CARD_PRIORITIES.map((priority) => (
-                <SelectItem key={priority} value={priority}>
-                  {getPriorityLabel(priority)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <label className="space-y-2 text-sm font-medium text-foreground">
+                <span className="block text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Etiqueta
+                </span>
+                <NativeSelect name="labelId" defaultValue={initialFilters.labelId}>
+                  <option value="">Todas</option>
+                  {context.labels.map((label) => (
+                    <option key={label.id} value={label.id}>
+                      {label.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
 
-          <Select
-            value={initialFilters.status || "ALL"}
-            onValueChange={(value) => updateFilter("status", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos</SelectItem>
-              {CARD_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {getStatusLabel(status)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+              <label className="space-y-2 text-sm font-medium text-foreground">
+                <span className="block text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Prioridad
+                </span>
+                <NativeSelect name="priority" defaultValue={initialFilters.priority}>
+                  <option value="">Todas</option>
+                  {CARD_PRIORITIES.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {getPriorityLabel(priority)}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-        {isPending ? (
-          <span className="text-sm text-muted-foreground">Actualizando resultados...</span>
-        ) : null}
+              <label className="space-y-2 text-sm font-medium text-foreground">
+                <span className="block text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Estado
+                </span>
+                <NativeSelect name="status" defaultValue={initialFilters.status}>
+                  <option value="">Todos</option>
+                  {CARD_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {getStatusLabel(status)}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
+            </div>
 
-        <Button
-          type="button"
-          variant={initialFilters.overdue === "true" ? "default" : "secondary"}
-          className="w-full sm:w-auto"
-          onClick={() =>
-            updateFilter("overdue", initialFilters.overdue === "true" ? "false" : "true")
-          }
-        >
-          Solo vencidas
-        </Button>
-      </div>
-    </>
+            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4">
+              <label className="inline-flex items-center gap-3 text-sm font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  name="overdue"
+                  value="true"
+                  defaultChecked={initialFilters.overdue === "true"}
+                  className="size-4 rounded border-border text-primary focus-visible:ring-4 focus-visible:ring-ring/60"
+                />
+                Mostrar sólo vencidas
+              </label>
+
+              <Button type="submit" variant="secondary" className="shrink-0">
+                Aplicar
+              </Button>
+            </div>
+          </details>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
