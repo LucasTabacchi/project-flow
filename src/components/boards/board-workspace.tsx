@@ -23,7 +23,6 @@ import { AddListForm } from "@/components/boards/add-list-form";
 import { BoardColumn } from "@/components/boards/board-column";
 import { BoardFilters } from "@/components/boards/board-filters";
 import { BoardHeader } from "@/components/boards/board-header";
-import { BoardRealtimeSync } from "@/components/boards/board-realtime-sync";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { isCardOverdue } from "@/lib/utils";
@@ -36,6 +35,17 @@ const CardDetailDialog = dynamic(
       default: module.CardDetailDialog,
     })),
   {
+    loading: () => null,
+  },
+);
+
+const BoardRealtimeSync = dynamic(
+  () =>
+    import("@/components/boards/board-realtime-sync").then((module) => ({
+      default: module.BoardRealtimeSync,
+    })),
+  {
+    ssr: false,
     loading: () => null,
   },
 );

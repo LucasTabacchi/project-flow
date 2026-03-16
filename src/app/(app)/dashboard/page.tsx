@@ -65,7 +65,9 @@ async function DashboardSections({
   return (
     <>
       <DashboardStats stats={data.stats} />
-      <InvitationPanel invitations={data.pendingInvitations} />
+      {data.pendingInvitations.length ? (
+        <InvitationPanel invitations={data.pendingInvitations} />
+      ) : null}
 
       <section className="grid min-w-0 gap-6 2xl:grid-cols-[1.5fr_0.9fr]">
         <div className="min-w-0 space-y-4">
@@ -112,7 +114,7 @@ async function DashboardSections({
                   <Link
                     key={card.id}
                     href={`/boards/${card.boardId}`}
-                    prefetch
+                    prefetch={false}
                     className="block min-w-0 rounded-[24px] border border-border bg-background/70 p-4 transition hover:-translate-y-0.5"
                   >
                     <div className="flex items-start justify-between gap-3">

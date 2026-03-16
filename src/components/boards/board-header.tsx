@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Settings2, Tags, Trash2 } from "lucide-react";
+import {
+  CircleCheckBig,
+  Layers3,
+  Settings2,
+  Tags,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -13,6 +20,7 @@ import {
 import { InviteMemberDialog } from "@/components/boards/invite-member-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MetricTile } from "@/components/ui/metric-card";
 import { UserAvatar } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -189,26 +197,23 @@ export function BoardHeader({ board }: BoardHeaderProps) {
 
           <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[24px] border border-border bg-background/70 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Tareas
-                </p>
-                <p className="mt-2 text-2xl font-semibold">{board.stats.totalCards}</p>
-              </div>
-              <div className="rounded-[24px] border border-border bg-background/70 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Completadas
-                </p>
-                <p className="mt-2 text-2xl font-semibold">
-                  {board.stats.completedCards}
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-border bg-background/70 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Vencidas
-                </p>
-                <p className="mt-2 text-2xl font-semibold">{board.stats.overdueCards}</p>
-              </div>
+              <MetricTile
+                label="Tareas"
+                value={board.stats.totalCards}
+                icon={Layers3}
+              />
+              <MetricTile
+                label="Completadas"
+                value={board.stats.completedCards}
+                icon={CircleCheckBig}
+                tone="success"
+              />
+              <MetricTile
+                label="Vencidas"
+                value={board.stats.overdueCards}
+                icon={TriangleAlert}
+                tone="warning"
+              />
             </div>
 
             <div className="rounded-[24px] border border-border bg-background/70 p-4">
