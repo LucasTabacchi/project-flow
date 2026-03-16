@@ -163,20 +163,53 @@ function buildStats(
     cards: CardSummaryView[];
   }>,
 ) {
-  const cards = lists.flatMap((list) => list.cards);
+  const cardsByUser = new Map(members.map((member) => [member.userId, 0]));
+  let totalCards = 0;
+  let completedCards = 0;
+  let overdueCards = 0;
+  let inProgressCards = 0;
+
+  for (const list of lists) {
+    for (const card of list.cards) {
+      totalCards += 1;
+
+      if (card.status === "DONE") {
+        completedCards += 1;
+      }
+
+      if (card.status === "IN_PROGRESS") {
+        inProgressCards += 1;
+      }
+
+      if (isCardOverdue(card.dueDate, card.status)) {
+        overdueCards += 1;
+      }
+
+      const seenAssignees = new Set<string>();
+
+      for (const assignee of card.assignees) {
+        if (seenAssignees.has(assignee.userId)) {
+          continue;
+        }
+
+        seenAssignees.add(assignee.userId);
+        cardsByUser.set(
+          assignee.userId,
+          (cardsByUser.get(assignee.userId) ?? 0) + 1,
+        );
+      }
+    }
+  }
 
   return {
-    totalCards: cards.length,
-    completedCards: cards.filter((card) => card.status === "DONE").length,
-    overdueCards: cards.filter((card) => isCardOverdue(card.dueDate, card.status))
-      .length,
-    inProgressCards: cards.filter((card) => card.status === "IN_PROGRESS").length,
+    totalCards,
+    completedCards,
+    overdueCards,
+    inProgressCards,
     byUser: members.map((member) => ({
       userId: member.userId,
       name: member.name,
-      count: cards.filter((card) =>
-        card.assignees.some((assignee) => assignee.userId === member.userId),
-      ).length,
+      count: cardsByUser.get(member.userId) ?? 0,
     })),
   };
 }
