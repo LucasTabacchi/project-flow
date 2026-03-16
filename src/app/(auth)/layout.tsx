@@ -1,18 +1,9 @@
-import { ThemeProvider } from "@/components/providers/theme-provider";
+import { AuthProviders } from "@/components/providers/auth-providers";
 
 export default async function AuthLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      {children}
-    </ThemeProvider>
-  );
+  return <AuthProviders>{children}</AuthProviders>;
 }
