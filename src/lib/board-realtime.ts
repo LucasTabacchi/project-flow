@@ -4,8 +4,78 @@ import { prisma } from "@/lib/db";
 import { BOARD_PRESENCE_TTL_MS } from "@/lib/realtime-constants";
 import type { BoardPresenceView } from "@/types";
 
+type BoardRealtimeEvent =
+  | {
+      type: "board-updated";
+      updatedAt: string;
+    }
+  | {
+      type: "presence-updated";
+      presence: BoardPresenceView[];
+    }
+  | {
+      type: "board-removed";
+    };
+
+type BoardRealtimeListener = (event: BoardRealtimeEvent) => void;
+
+declare global {
+  var __projectflowBoardRealtimeListeners:
+    | Map<string, Set<BoardRealtimeListener>>
+    | undefined;
+}
+
 function getPresenceCutoffDate() {
   return new Date(Date.now() - BOARD_PRESENCE_TTL_MS);
+}
+
+function getBoardRealtimeListeners() {
+  if (!globalThis.__projectflowBoardRealtimeListeners) {
+    globalThis.__projectflowBoardRealtimeListeners = new Map();
+  }
+
+  return globalThis.__projectflowBoardRealtimeListeners;
+}
+
+function publishBoardEvent(boardId: string, event: BoardRealtimeEvent) {
+  const listeners = getBoardRealtimeListeners().get(boardId);
+
+  if (!listeners?.size) {
+    return;
+  }
+
+  for (const listener of [...listeners]) {
+    try {
+      listener(event);
+    } catch {
+      // Ignore individual listener failures so a bad connection does not break the bus.
+    }
+  }
+}
+
+export function subscribeToBoardRealtime(
+  boardId: string,
+  listener: BoardRealtimeListener,
+) {
+  const listenersByBoard = getBoardRealtimeListeners();
+  const listeners = listenersByBoard.get(boardId) ?? new Set<BoardRealtimeListener>();
+
+  listeners.add(listener);
+  listenersByBoard.set(boardId, listeners);
+
+  return () => {
+    const currentListeners = listenersByBoard.get(boardId);
+
+    if (!currentListeners) {
+      return;
+    }
+
+    currentListeners.delete(listener);
+
+    if (!currentListeners.size) {
+      listenersByBoard.delete(boardId);
+    }
+  };
 }
 
 export async function getBoardSyncState(boardId: string) {
@@ -31,6 +101,11 @@ export async function touchBoard(boardId: string) {
     select: {
       updatedAt: true,
     },
+  });
+
+  publishBoardEvent(boardId, {
+    type: "board-updated",
+    updatedAt: board.updatedAt.toISOString(),
   });
 
   return board.updatedAt;
@@ -171,6 +246,22 @@ export async function getBoardPresence(boardId: string): Promise<BoardPresenceVi
       activeCardId: entry.activeCardId,
       sessionCount: entry.sessionCount,
     }));
+}
+
+export function publishBoardPresence(
+  boardId: string,
+  presence: BoardPresenceView[],
+) {
+  publishBoardEvent(boardId, {
+    type: "presence-updated",
+    presence,
+  });
+}
+
+export function publishBoardRemoved(boardId: string) {
+  publishBoardEvent(boardId, {
+    type: "board-removed",
+  });
 }
 
 export function createPresenceFingerprint(presence: BoardPresenceView[]) {

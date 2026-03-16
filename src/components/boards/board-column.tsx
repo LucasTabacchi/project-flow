@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { memo, useState, useTransition } from "react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripHorizontal, MoreHorizontal, PencilLine, Trash2 } from "lucide-react";
@@ -30,7 +30,7 @@ type BoardColumnProps = {
   onOpenCard: (cardId: string) => void;
 };
 
-export function BoardColumn({
+function BoardColumnComponent({
   boardId,
   list,
   canEdit,
@@ -132,7 +132,7 @@ export function BoardColumn({
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
-            className="mt-1 rounded-xl p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            className="focus-ring mt-1 rounded-xl p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
             aria-label="Arrastrar lista"
             disabled={!canEdit || disableInteractions}
             {...attributes}
@@ -172,7 +172,7 @@ export function BoardColumn({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="rounded-xl p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                className="focus-ring rounded-xl p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
               >
                 <MoreHorizontal className="size-4" />
               </button>
@@ -223,7 +223,7 @@ export function BoardColumn({
             <BoardCard
               key={card.id}
               card={card}
-              onOpen={() => onOpenCard(card.id)}
+              onOpenCard={onOpenCard}
               disabled={!canEdit || disableInteractions}
             />
           ))}
@@ -245,3 +245,5 @@ export function BoardColumn({
     </div>
   );
 }
+
+export const BoardColumn = memo(BoardColumnComponent);

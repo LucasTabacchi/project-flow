@@ -36,11 +36,10 @@ const metricToneClasses: Record<
     iconContainer: "bg-primary/12 text-primary",
   },
   success: {
-    iconContainer:
-      "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+    iconContainer: "bg-success-surface text-success-foreground",
   },
   warning: {
-    iconContainer: "bg-amber-500/14 text-amber-700 dark:text-amber-300",
+    iconContainer: "bg-warning-surface text-warning-foreground",
   },
 };
 

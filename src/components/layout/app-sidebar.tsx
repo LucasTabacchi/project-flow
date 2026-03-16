@@ -91,7 +91,7 @@ function AppSidebarSkeleton({
     <aside className="hidden xl:block xl:w-[280px] xl:shrink-0 2xl:w-[310px]">
       <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-4 py-5 2xl:px-5 2xl:py-6">
         <Link href="/dashboard" className="mb-8 flex items-center gap-3">
-          <div className="flex size-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-teal-500 via-cyan-400 to-orange-400 text-white shadow-lg">
+          <div className="brand-gradient flex size-12 items-center justify-center rounded-[20px] text-white shadow-lg">
             <KanbanSquare className="size-6" />
           </div>
           <div>
@@ -143,7 +143,7 @@ function AppSidebarComponent({ user }: AppSidebarProps) {
     <aside className="hidden xl:block xl:w-[280px] xl:shrink-0 2xl:w-[310px]">
       <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-4 py-5 2xl:px-5 2xl:py-6">
         <Link href="/dashboard" className="mb-8 flex items-center gap-3">
-          <div className="flex size-12 items-center justify-center rounded-[20px] bg-gradient-to-br from-teal-500 via-cyan-400 to-orange-400 text-white shadow-lg">
+          <div className="brand-gradient flex size-12 items-center justify-center rounded-[20px] text-white shadow-lg">
             <KanbanSquare className="size-6" />
           </div>
           <div>

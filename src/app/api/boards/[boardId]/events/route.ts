@@ -5,11 +5,12 @@ import {
   createPresenceFingerprint,
   getBoardPresence,
   getBoardSyncState,
+  subscribeToBoardRealtime,
 } from "@/lib/board-realtime";
 import { getBoardMembership } from "@/lib/data/boards";
 import {
   BOARD_EVENTS_HEARTBEAT_MS,
-  BOARD_EVENTS_POLL_INTERVAL_MS,
+  BOARD_EVENTS_FALLBACK_POLL_INTERVAL_MS,
 } from "@/lib/realtime-constants";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,37 @@ export async function GET(request: Request, { params }: RouteContext) {
       let closed = false;
       let lastKnownUpdatedAt = initialState.updatedAt.toISOString();
       let lastPresenceFingerprint = createPresenceFingerprint(initialPresence);
+      const unsubscribe = subscribeToBoardRealtime(boardId, (event) => {
+        if (event.type === "board-updated") {
+          if (event.updatedAt === lastKnownUpdatedAt) {
+            return;
+          }
+
+          lastKnownUpdatedAt = event.updatedAt;
+          send("board-updated", {
+            updatedAt: event.updatedAt,
+          });
+          return;
+        }
+
+        if (event.type === "presence-updated") {
+          const nextPresenceFingerprint = createPresenceFingerprint(event.presence);
+
+          if (nextPresenceFingerprint === lastPresenceFingerprint) {
+            return;
+          }
+
+          lastPresenceFingerprint = nextPresenceFingerprint;
+          send("presence-updated", {
+            presence: event.presence,
+          });
+          return;
+        }
+
+        send("board-removed", {});
+        cleanup();
+        controller.close();
+      });
       const send = (event: string, data: unknown) => {
         if (closed) {
           return;
@@ -100,11 +132,12 @@ export async function GET(request: Request, { params }: RouteContext) {
         }
 
         closed = true;
-        clearInterval(pollTimer);
+        unsubscribe();
+        clearInterval(fallbackTimer);
         clearInterval(heartbeatTimer);
       };
 
-      const pollTimer = setInterval(async () => {
+      const fallbackTimer = setInterval(async () => {
         try {
           const [state, presence] = await Promise.all([
             getBoardSyncState(boardId),
@@ -139,7 +172,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           cleanup();
           controller.close();
         }
-      }, BOARD_EVENTS_POLL_INTERVAL_MS);
+      }, BOARD_EVENTS_FALLBACK_POLL_INTERVAL_MS);
 
       const heartbeatTimer = setInterval(() => {
         send("ping", {

@@ -5,6 +5,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { isCardOverdue } from "@/lib/utils";
 import type {
+  CalendarCardView,
   DashboardData,
   ProfilePageData,
   SearchCardView,
@@ -111,6 +112,24 @@ type SearchCardRecord = {
   }>;
 };
 
+type CalendarCardRecord = {
+  id: string;
+  title: string;
+  description: string | null;
+  dueDate: Date | null;
+  status: CalendarCardView["status"];
+  priority: CalendarCardView["priority"];
+  boardId: string;
+  board: {
+    name: string;
+    theme: string;
+  };
+  listId: string;
+  list: {
+    name: string;
+  };
+};
+
 type SearchCardIdRow = {
   id: string;
 };
@@ -148,6 +167,23 @@ function serializeSearchCard(card: SearchCardRecord): SearchCardView {
       color: label.color,
     })),
     assignees: (card.assignments ?? []).map(({ user }) => serializeUser(user)),
+    isOverdue: isCardOverdue(card.dueDate, card.status),
+  };
+}
+
+function serializeCalendarCard(card: CalendarCardRecord): CalendarCardView {
+  return {
+    id: card.id,
+    boardId: card.boardId,
+    boardName: card.board.name,
+    boardTheme: card.board.theme,
+    listId: card.listId,
+    listName: card.list.name,
+    title: card.title,
+    description: card.description,
+    dueDate: card.dueDate?.toISOString() ?? null,
+    status: card.status,
+    priority: card.priority,
     isOverdue: isCardOverdue(card.dueDate, card.status),
   };
 }
@@ -554,7 +590,7 @@ export async function getCalendarCards(userId: string) {
     },
   });
 
-  return cards.map(serializeSearchCard);
+  return cards.map(serializeCalendarCard);
 }
 
 export async function getProfilePageData(userId: string): Promise<ProfilePageData> {

@@ -20,6 +20,13 @@
   --border: rgba(19, 34, 56, 0.12);
   --input: rgba(255, 255, 255, 0.88);
   --ring: rgba(15, 118, 110, 0.28);
+  --success-surface: rgba(16, 185, 129, 0.12);
+  --success-foreground: #047857;
+  --warning-surface: rgba(245, 158, 11, 0.14);
+  --warning-foreground: #b45309;
+  --brand-start: #14b8a6;
+  --brand-middle: #22d3ee;
+  --brand-end: #fb923c;
   --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.08);
 }
 
@@ -43,6 +50,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-success-surface: var(--success-surface);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-foreground: var(--warning-foreground);
   --font-sans: var(--font-manrope);
   --font-display: var(--font-space-grotesk);
 }
@@ -67,6 +78,13 @@
   --border: rgba(226, 236, 248, 0.12);
   --input: rgba(10, 22, 38, 0.88);
   --ring: rgba(41, 183, 168, 0.34);
+  --success-surface: rgba(16, 185, 129, 0.18);
+  --success-foreground: #a7f3d0;
+  --warning-surface: rgba(245, 158, 11, 0.2);
+  --warning-foreground: #fde68a;
+  --brand-start: #2dd4bf;
+  --brand-middle: #67e8f9;
+  --brand-end: #fb923c;
   --shadow-soft: 0 24px 60px rgba(2, 8, 23, 0.34);
 }
 
@@ -114,6 +132,24 @@ h4 {
 .glass-floating {
   background: color-mix(in srgb, var(--card) 88%, transparent);
   box-shadow: var(--shadow-soft);
+}
+
+.brand-gradient {
+  background-image: linear-gradient(
+    135deg,
+    var(--brand-start),
+    var(--brand-middle),
+    var(--brand-end)
+  );
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

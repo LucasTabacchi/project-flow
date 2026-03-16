@@ -3,6 +3,7 @@
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
+import { fieldTriggerClassName } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -17,7 +18,7 @@ function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex h-11 w-full items-center justify-between rounded-2xl border border-border bg-input px-4 py-2 text-sm shadow-sm transition focus:ring-4 focus:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
+        `${fieldTriggerClassName} data-[placeholder]:text-muted-foreground/80`,
         className,
       )}
       {...props}
