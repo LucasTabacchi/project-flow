@@ -18,6 +18,7 @@ import {
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
 import { createNotifications } from "@/lib/notifications";
+import { fireBoardWebhooks } from "@/app/actions/webhooks";
 import { logActivity, getCardActivity } from "@/lib/activity";
 import { ActivityType } from "@prisma/client";
 import type { CardHistoryItem } from "@/types";
@@ -254,6 +255,14 @@ export async function createCardAction(
     meta: { cardId: card.id, cardTitle: parsed.data.title, listName: list.name },
   });
 
+  fireBoardWebhooks(parsed.data.boardId, "card.created", {
+    cardId: card.id,
+    cardTitle: parsed.data.title,
+    listId: parsed.data.listId,
+    listName: list.name,
+    createdBy: user.name,
+  });
+
   return success(
     {
       cardId: card.id,
@@ -376,6 +385,13 @@ export async function updateCardAction(
       type: ActivityType.CARD_STATUS_CHANGED,
       summary: `cambió el estado de "${detail.title}" a ${newStatus}`,
       meta: { cardId: detail.id, cardTitle: detail.title, oldValue: oldStatus ?? undefined, newValue: newStatus },
+    });
+    fireBoardWebhooks(parsed.data.boardId, "card.status_changed", {
+      cardId: detail.id,
+      cardTitle: detail.title,
+      oldStatus: oldStatus ?? null,
+      newStatus,
+      updatedBy: user.name,
     });
   }
 
@@ -561,6 +577,13 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
         toList: moved.toList,
       },
     });
+    fireBoardWebhooks(parsed.data.boardId, "card.moved", {
+      cardId: moved.cardId,
+      cardTitle: moved.cardTitle,
+      fromList: moved.fromList,
+      toList: moved.toList,
+      movedBy: user.name,
+    });
   }
 
   return success(undefined, "Tarjetas reordenadas.");
@@ -663,6 +686,13 @@ export async function addCommentAction(
     type: ActivityType.CARD_COMMENT_ADDED,
     summary: `comentó en "${detail.title}"`,
     meta: { cardId: detail.id, cardTitle: detail.title },
+  });
+
+  fireBoardWebhooks(parsed.data.boardId, "comment.added", {
+    cardId: detail.id,
+    cardTitle: detail.title,
+    commentBody: parsed.data.body,
+    commentedBy: user.name,
   });
 
   return success(

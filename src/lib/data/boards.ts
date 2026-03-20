@@ -1,6 +1,11 @@
 import { getBoardPresence } from "@/lib/board-realtime";
 import { Prisma } from "@prisma/client";
 import { cache } from "react";
+import {
+  isRedisConfigured,
+  redisCacheBoardSnapshot,
+  redisGetBoardSnapshot,
+} from "@/lib/redis";
 
 import { prisma } from "@/lib/db";
 import {
@@ -436,6 +441,16 @@ export async function getBoardPageData(
   boardId: string,
   userId: string,
 ): Promise<BoardPageData | null> {
+  // ── Ronda 3: intentar leer desde caché Redis ──────────────────────────────
+  // La caché se invalida en touchBoard (cada mutación la limpia).
+  // Solo cacheamos si Redis está configurado — en dev funciona sin él.
+  if (isRedisConfigured()) {
+    const cacheKey = `board_page:${boardId}:${userId}`;
+    const cached = await redisGetBoardSnapshot<BoardPageData>(cacheKey);
+    if (cached) return cached;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   // ─── MEJORA 1 aplicada: membership+presence+cards con stats en paralelo ───
   // Antes: membership+presence en Promise.all, luego getBoardChecklistStats
   // secuencial = 3 roundtrips al DB.
@@ -527,7 +542,7 @@ export async function getBoardPageData(
     cards: cardsByList.get(list.id) ?? [],
   }));
 
-  return {
+  const result: BoardPageData = {
     id: board.id,
     name: board.name,
     description: board.description,
@@ -551,6 +566,15 @@ export async function getBoardPageData(
     lists,
     updatedAt: board.updatedAt.toISOString(),
   };
+
+  // ── Ronda 3: escribir en caché Redis ─────────────────────────────────────
+  if (isRedisConfigured()) {
+    const cacheKey = `board_page:${boardId}:${userId}`;
+    void redisCacheBoardSnapshot(cacheKey, result).catch(() => {});
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  return result;
 }
 
 export async function getCardDetail(
@@ -593,6 +617,13 @@ export async function getCardDetail(
         include: {
           author: {
             select: userSummarySelect,
+          },
+          reactions: {
+            select: {
+              emoji: true,
+              userId: true,
+              user: { select: { name: true } },
+            },
           },
         },
       },
@@ -643,12 +674,29 @@ export async function getCardDetail(
     createdBy: serializeUser(card.createdBy),
     labels: serializeLabels(card.cardLabels),
     assignees: card.assignments.map(({ user }) => serializeUser(user)),
-    comments: card.comments.map((comment) => ({
-      id: comment.id,
-      body: comment.body,
-      createdAt: comment.createdAt.toISOString(),
-      author: serializeUser(comment.author),
-    })),
+    comments: card.comments.map((comment) => {
+      // Group reactions by emoji
+      const reactionMap = new Map<string, { count: number; userNames: string[]; userIds: string[] }>();
+      for (const r of comment.reactions ?? []) {
+        const entry = reactionMap.get(r.emoji) ?? { count: 0, userNames: [], userIds: [] };
+        entry.count++;
+        entry.userNames.push(r.user.name);
+        entry.userIds.push(r.userId);
+        reactionMap.set(r.emoji, entry);
+      }
+      return {
+        id: comment.id,
+        body: comment.body,
+        createdAt: comment.createdAt.toISOString(),
+        author: serializeUser(comment.author),
+        reactions: [...reactionMap.entries()].map(([emoji, data]) => ({
+          emoji,
+          count: data.count,
+          reactedByMe: false, // populated client-side via getCommentReactions or passed userId
+          userNames: data.userNames,
+        })),
+      };
+    }),
     checklists: card.checklists.map((checklist) => ({
       id: checklist.id,
       title: checklist.title,

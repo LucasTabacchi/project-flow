@@ -26,7 +26,7 @@ import { BoardHeader } from "@/components/boards/board-header";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { KanbanSquare, CalendarDays } from "lucide-react";
+import { CalendarDays, GanttChartSquare, KanbanSquare, LayoutList, Users } from "lucide-react";
 import { isCardOverdue } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardListView, BoardPageData, CardSummaryView } from "@/types";
@@ -83,6 +83,45 @@ const CalendarView = dynamic(
     ssr: false,
     loading: () => (
       <div className="h-[500px] animate-pulse rounded-[28px] border border-border bg-card/70" />
+    ),
+  },
+);
+
+const TableView = dynamic(
+  () =>
+    import("@/components/boards/table-view").then((module) => ({
+      default: module.TableView,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[300px] animate-pulse rounded-[28px] border border-border bg-card/70" />
+    ),
+  },
+);
+
+const GanttView = dynamic(
+  () =>
+    import("@/components/boards/gantt-view").then((module) => ({
+      default: module.GanttView,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] animate-pulse rounded-[28px] border border-border bg-card/70" />
+    ),
+  },
+);
+
+const WorkloadView = dynamic(
+  () =>
+    import("@/components/boards/workload-view").then((module) => ({
+      default: module.WorkloadView,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[300px] animate-pulse rounded-[28px] border border-border bg-card/70" />
     ),
   },
 );
@@ -238,7 +277,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
   const [activeCard, setActiveCard] = useState<CardSummaryView | null>(null);
   const [activeList, setActiveList] = useState<BoardListView | null>(null);
   const [activeField, setActiveField] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"kanban" | "calendar">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "calendar" | "table" | "gantt" | "workload">("kanban");
   const [isPending, startTransition] = useTransition();
   const deferredQuery = useDeferredValue(filters.query);
 
@@ -337,6 +376,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       role: currentBoard.role,
       permissions: currentBoard.permissions,
       labels: currentBoard.labels,
+      lists: currentBoard.lists,
       members: currentBoard.members,
       presence: currentBoard.presence,
       stats: currentBoard.stats,
@@ -345,6 +385,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       currentBoard.description,
       currentBoard.id,
       currentBoard.labels,
+      currentBoard.lists,
       currentBoard.members,
       currentBoard.name,
       currentBoard.permissions,
@@ -467,8 +508,8 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       />
       <BoardFilters boardId={currentBoard.id} labels={currentBoard.labels} members={currentBoard.members} />
 
-      {/* Toggle de vista: Kanban / Calendario */}
-      <div className="flex items-center gap-1 rounded-xl border border-border bg-card/70 p-1 w-fit">
+      {/* Toggle de vista */}
+      <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-card/70 p-1 w-fit">
         <Button
           variant={viewMode === "kanban" ? "default" : "ghost"}
           size="sm"
@@ -487,11 +528,53 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
           <CalendarDays className="size-3.5" />
           Calendario
         </Button>
+        <Button
+          variant={viewMode === "table" ? "default" : "ghost"}
+          size="sm"
+          className="gap-1.5 h-7 text-xs"
+          onClick={() => setViewMode("table")}
+        >
+          <LayoutList className="size-3.5" />
+          Tabla
+        </Button>
+        <Button
+          variant={viewMode === "gantt" ? "default" : "ghost"}
+          size="sm"
+          className="gap-1.5 h-7 text-xs"
+          onClick={() => setViewMode("gantt")}
+        >
+          <GanttChartSquare className="size-3.5" />
+          Gantt
+        </Button>
+        <Button
+          variant={viewMode === "workload" ? "default" : "ghost"}
+          size="sm"
+          className="gap-1.5 h-7 text-xs"
+          onClick={() => setViewMode("workload")}
+        >
+          <Users className="size-3.5" />
+          Carga
+        </Button>
       </div>
 
       {/* Vista Calendario */}
       {viewMode === "calendar" ? (
         <CalendarView onOpenCard={openCard} />
+      ) : null}
+
+      {/* Vista Tabla */}
+      {viewMode === "table" ? (
+        <TableView onOpenCard={openCard} />
+      ) : null}
+
+      {/* Vista Gantt */}
+      {viewMode === "gantt" ? (
+        <GanttView onOpenCard={openCard} />
+      ) : null}
+
+      {/* Vista Carga de trabajo */}
+      {viewMode === "workload" ? (
+        <WorkloadView onOpenCard={openCard} />
       ) : null}
 
       {/* Vista Kanban */}

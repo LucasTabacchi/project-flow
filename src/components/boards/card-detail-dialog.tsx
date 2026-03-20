@@ -83,6 +83,8 @@ import type {
   LabelView,
 } from "@/types";
 import { useBoardStore } from "@/stores/board-store";
+import { CommentReactions } from "@/components/boards/comment-reactions";
+import type { CommentReactionView } from "@/types";
 
 type CardDetailDialogProps = {
   boardId: string;
@@ -310,6 +312,11 @@ export function CardDetailDialog({
   const [historyLoading, setHistoryLoading] = useState(false);
   const historyLoadedRef = useRef<string | null>(null);
 
+  // reactions: commentId → ReactionSummary[]
+  const [commentReactions, setCommentReactions] = useState<
+    Record<string, CommentReactionView[]>
+  >({});
+
   const remoteNoticeRef = useRef<string | null>(null);
 
   // Timer tick
@@ -428,6 +435,12 @@ export function CardDetailDialog({
     setEstimatedMinutes(
       nextDetail.estimatedMinutes != null ? String(nextDetail.estimatedMinutes) : "",
     );
+    // Initialize reactions from preloaded comment data
+    const rxMap: Record<string, CommentReactionView[]> = {};
+    for (const c of nextDetail.comments) {
+      rxMap[c.id] = c.reactions;
+    }
+    setCommentReactions(rxMap);
   }
 
   function resetState() {
@@ -444,6 +457,7 @@ export function CardDetailDialog({
     setManualNote("");
     setTimerActive(false);
     setTimerStart(null);
+    setCommentReactions({});
     onActiveFieldChange?.(null);
   }
 
@@ -1015,6 +1029,15 @@ export function CardDetailDialog({
                                 ),
                               )}
                             </p>
+                            <CommentReactions
+                              boardId={boardId}
+                              commentId={entry.id}
+                              reactions={commentReactions[entry.id] ?? entry.reactions}
+                              onUpdate={(reactions) =>
+                                setCommentReactions((prev) => ({ ...prev, [entry.id]: reactions }))
+                              }
+                              canReact
+                            />
                           </div>
                         ))}
                       </div>

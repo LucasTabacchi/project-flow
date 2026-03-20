@@ -75,3 +75,55 @@ export async function redisGetBoardRevision(boardId: string): Promise<number> {
   const result = await cmd<string>(["GET", `board_rev:${boardId}`]);
   return result ? parseInt(result, 10) : 0;
 }
+
+// ── Ronda 3: Caché de snapshots de tablero ────────────────────────────────────
+// TTL de 30s — suficiente para absorber lecturas concurrentes sin datos muy viejos.
+const BOARD_CACHE_TTL_S = 30;
+
+export async function redisCacheBoardSnapshot(
+  boardId: string,
+  data: unknown,
+): Promise<void> {
+  const key = `board_snapshot:${boardId}`;
+  await cmd(["SETEX", key, BOARD_CACHE_TTL_S, JSON.stringify(data)]);
+}
+
+export async function redisGetBoardSnapshot<T = unknown>(
+  boardId: string,
+): Promise<T | null> {
+  const raw = await cmd<string>(["GET", `board_snapshot:${boardId}`]);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function redisInvalidateBoardSnapshot(boardId: string): Promise<void> {
+  await cmd(["DEL", `board_snapshot:${boardId}`]);
+}
+
+// Caché genérica con TTL configurable (util para rutas de dashboard, etc.)
+export async function redisCacheSet(
+  key: string,
+  data: unknown,
+  ttlSeconds: number,
+): Promise<void> {
+  await cmd(["SETEX", key, ttlSeconds, JSON.stringify(data)]);
+}
+
+export async function redisCacheGet<T = unknown>(key: string): Promise<T | null> {
+  const raw = await cmd<string>(["GET", key]);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function redisCacheDel(key: string): Promise<void> {
+  await cmd(["DEL", key]);
+}
+// ─────────────────────────────────────────────────────────────────────────────

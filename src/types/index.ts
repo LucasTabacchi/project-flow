@@ -210,11 +210,19 @@ export type DashboardData = {
   };
 };
 
+export type CommentReactionView = {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  userNames: string[];
+};
+
 export type CardCommentView = {
   id: string;
   body: string;
   createdAt: string;
   author: UserSummary;
+  reactions: CommentReactionView[];
 };
 
 export type ChecklistItemView = {

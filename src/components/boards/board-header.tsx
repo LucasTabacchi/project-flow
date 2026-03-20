@@ -3,14 +3,17 @@
 import { memo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BookTemplate,
   CircleCheckBig,
   Layers3,
   LogOut,
+  RefreshCw,
   Settings2,
   Tags,
   Trash2,
   TriangleAlert,
   Activity,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,6 +24,9 @@ import {
   updateBoardAction,
 } from "@/app/actions/boards";
 import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
+import { WebhookPanel } from "@/components/boards/webhook-panel";
+import { RecurringCardsPanel } from "@/components/boards/recurring-cards-panel";
+import { saveAsBoardTemplateAction } from "@/app/actions/templates";
 import { InviteMemberDialog } from "@/components/boards/invite-member-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   appendLabelToBoard,
   updateBoardMetadata,
@@ -62,6 +69,7 @@ type BoardHeaderData = Pick<
   | "role"
   | "permissions"
   | "labels"
+  | "lists"
   | "members"
   | "presence"
   | "stats"
@@ -79,6 +87,13 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [webhooksOpen, setWebhooksOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDesc, setTemplateDesc] = useState("");
+  const [templatePublic, setTemplatePublic] = useState(false);
+  const [templateIncludeCards, setTemplateIncludeCards] = useState(true);
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [theme, setTheme] = useState(board.theme);
@@ -151,6 +166,26 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
 
       toast.success(result.message ?? "Abandonaste el tablero.");
       router.push("/dashboard");
+    });
+  }
+
+  function handleSaveAsTemplate() {
+    startTransition(async () => {
+      const result = await saveAsBoardTemplateAction({
+        boardId: board.id,
+        name: templateName || board.name,
+        description: templateDesc || undefined,
+        isPublic: templatePublic,
+        includeCards: templateIncludeCards,
+      });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message ?? "Plantilla guardada.");
+      setTemplateOpen(false);
+      setTemplateName("");
+      setTemplateDesc("");
     });
   }
 
@@ -245,6 +280,28 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                 <Activity className="size-4" />
                 Actividad
               </Button>
+              {board.permissions.canEdit ? (
+                <Button variant="secondary" className="shrink-0" onClick={() => setRecurringOpen(true)}>
+                  <RefreshCw className="size-4" />
+                  Recurrentes
+                </Button>
+              ) : null}
+              {board.permissions.canDelete ? (
+                <>
+                  <Button variant="secondary" className="shrink-0" onClick={() => setWebhooksOpen(true)}>
+                    <Zap className="size-4" />
+                    Webhooks
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="shrink-0"
+                    onClick={() => { setTemplateName(board.name); setTemplateOpen(true); }}
+                  >
+                    <BookTemplate className="size-4" />
+                    Guardar plantilla
+                  </Button>
+                </>
+              ) : null}
             </div>
           </div>
 
@@ -294,6 +351,28 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
               <Activity className="size-4" />
               Actividad
             </Button>
+            {board.permissions.canEdit ? (
+              <Button variant="secondary" className="shrink-0" onClick={() => setRecurringOpen(true)}>
+                <RefreshCw className="size-4" />
+                Recurrentes
+              </Button>
+            ) : null}
+            {board.permissions.canDelete ? (
+              <>
+                <Button variant="secondary" className="shrink-0" onClick={() => setWebhooksOpen(true)}>
+                  <Zap className="size-4" />
+                  Webhooks
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="shrink-0"
+                  onClick={() => { setTemplateName(board.name); setTemplateOpen(true); }}
+                >
+                  <BookTemplate className="size-4" />
+                  Guardar plantilla
+                </Button>
+              </>
+            ) : null}
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -552,6 +631,102 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
         open={activityOpen}
         onClose={() => setActivityOpen(false)}
       />
+
+      {/* Webhooks dialog */}
+      <Dialog open={webhooksOpen} onOpenChange={setWebhooksOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Webhooks salientes</DialogTitle>
+            <DialogDescription>
+              Recibí eventos del tablero en tiempo real en tus propios servicios.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <WebhookPanel boardId={board.id} />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recurring cards dialog */}
+      <Dialog open={recurringOpen} onOpenChange={setRecurringOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Tarjetas recurrentes</DialogTitle>
+            <DialogDescription>
+              Configurá tarjetas que se crean automáticamente con una frecuencia definida.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[65vh]">
+            <RecurringCardsPanel
+              boardId={board.id}
+              lists={board.lists ?? []}
+              canEdit={board.permissions.canEdit}
+            />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save as template dialog */}
+      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Guardar como plantilla</DialogTitle>
+            <DialogDescription>
+              Guardá la estructura de este tablero para reutilizarla en futuros proyectos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Nombre de la plantilla</Label>
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder={board.name}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Descripción (opcional)</Label>
+              <Textarea
+                value={templateDesc}
+                onChange={(e) => setTemplateDesc(e.target.value)}
+                placeholder="Describe para qué sirve esta plantilla…"
+                className="min-h-16"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={templateIncludeCards}
+                  onChange={(e) => setTemplateIncludeCards(e.target.checked)}
+                  className="rounded border-border"
+                />
+                <span>Incluir tarjetas existentes</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={templatePublic}
+                  onChange={(e) => setTemplatePublic(e.target.checked)}
+                  className="rounded border-border"
+                />
+                <span>Hacer pública (visible para otros usuarios)</span>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setTemplateOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveAsTemplate}
+              disabled={isPending || !templateName.trim()}
+            >
+              {isPending ? "Guardando..." : "Guardar plantilla"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -6,6 +6,7 @@ import {
   isRedisConfigured,
   redisIncrBoardRevision,
   redisSetBoardEvent,
+  redisCacheDel,
 } from "@/lib/redis";
 import type { BoardPresenceView } from "@/types";
 
@@ -109,6 +110,15 @@ export async function touchBoard(boardId: string) {
     type: "board-updated",
     updatedAt: board.updatedAt.toISOString(),
   });
+
+  // ── Ronda 3: invalidar caché de snapshots del tablero ─────────────────────
+  // Cada mutación llama a touchBoard, así que esto cubre todos los casos.
+  // El patrón de key es board_page:{boardId}:* — usamos un scan para cubrir
+  // todos los userId. Como el TTL es solo 30s, también se limpian solos.
+  if (isRedisConfigured()) {
+    void redisCacheDel(`board_snapshot:${boardId}`).catch(() => {});
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   return board.updatedAt;
 }
