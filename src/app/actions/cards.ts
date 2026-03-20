@@ -17,7 +17,7 @@ import {
 } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
-import { createNotification, createNotifications } from "@/lib/notifications";
+import { createNotifications } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
 import { ActivityType } from "@prisma/client";
 import {
@@ -346,7 +346,7 @@ export async function updateCardAction(
   if (newlyAssignedIds.length && detail) {
     createNotifications(
       newlyAssignedIds.map((assigneeId) => ({
-        type: ActivityType.CARD_ASSIGNED as const,
+        type: "CARD_ASSIGNED",
         userId: assigneeId,
         actorName: user.name,
         cardTitle: detail.title,

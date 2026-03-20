@@ -165,13 +165,13 @@ export function AppHeader({ user }: AppHeaderProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile">
+                  <Link href="/profile" prefetch={false}>
                     <UserRound className="size-4" />
                     Perfil
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/search">
+                  <Link href="/search" prefetch={false}>
                     <Search className="size-4" />
                     Buscador global
                   </Link>
@@ -249,6 +249,7 @@ export function AppHeader({ user }: AppHeaderProps) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={false}
                     onClick={() => setIsMobileNavOpen(false)}
                     className={cn(
                       "focus-ring group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/60 hover:text-foreground",

@@ -18,6 +18,7 @@ export function NavLink({ href, className, children, ...props }: NavLinkProps) {
   return (
     <Link
       href={href}
+      prefetch={props.prefetch ?? false}
       className={cn(
         "focus-ring group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-150 hover:bg-secondary/60 hover:text-foreground",
         isActive &&

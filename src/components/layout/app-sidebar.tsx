@@ -75,7 +75,11 @@ function SidebarBoardsSkeleton() {
 
 function SidebarLogo() {
   return (
-    <Link href="/dashboard" className="mb-7 flex items-center gap-3 group">
+    <Link
+      href="/dashboard"
+      prefetch={false}
+      className="mb-7 flex items-center gap-3 group"
+    >
       <div className="relative flex size-10 items-center justify-center">
         <div className="absolute inset-0 brand-gradient rounded-[14px] opacity-90 group-hover:opacity-100 transition-opacity shadow-md" />
         <KanbanSquare className="relative size-[18px] text-white" />
