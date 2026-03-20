@@ -156,9 +156,9 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
                 <span>Ritmo resuelto</span>
                 <span>{resolvedRatio}%</span>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-background/60">
+              <div className="mt-2 progress-track h-1.5">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-primary via-cyan-400 to-accent"
+                  className="progress-fill bg-gradient-to-r from-primary via-cyan-400 to-accent"
                   style={{ width: `${Math.max(resolvedRatio, stats.totalCards ? 8 : 0)}%` }}
                 />
               </div>
@@ -168,9 +168,9 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
                 <span>Presión inmediata</span>
                 <span>{attentionRatio}%</span>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-background/60">
+              <div className="mt-2 progress-track h-1.5">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500"
+                  className="progress-fill bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500"
                   style={{ width: `${Math.max(attentionRatio, attentionCount ? 8 : 0)}%` }}
                 />
               </div>

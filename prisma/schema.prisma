@@ -44,6 +44,29 @@ enum LabelColor {
   VIOLET
 }
 
+enum NotificationType {
+  CARD_ASSIGNED
+  CARD_COMMENT
+  CARD_MENTION
+  BOARD_INVITATION
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
+}
+
+enum ActivityType {
+  CARD_CREATED
+  CARD_MOVED
+  CARD_RENAMED
+  CARD_STATUS_CHANGED
+  CARD_ASSIGNED
+  CARD_COMMENT_ADDED
+  CARD_DUE_DATE_SET
+  CARD_DUE_DATE_REMOVED
+  LIST_CREATED
+  LIST_RENAMED
+  MEMBER_JOINED
+}
+
 model User {
   id                      String            @id @default(cuid())
   name                    String
@@ -64,6 +87,8 @@ model User {
   receivedInvitations     BoardInvitation[] @relation("BoardInvitationInvitee")
   attachments             Attachment[]      @relation("AttachmentUploader")
   boardPresences          BoardPresence[]
+  notifications           Notification[]
+  activities              BoardActivity[]
 }
 
 model Session {
@@ -95,6 +120,7 @@ model Board {
   cards           Card[]
   labels          Label[]
   presences       BoardPresence[]
+  activities      BoardActivity[]
 
   @@index([ownerId])
   @@index([updatedAt])
@@ -183,6 +209,7 @@ model BoardPresence {
   userId       String
   clientId     String
   activeCardId String?
+  activeField  String?
   lastSeenAt   DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -271,6 +298,36 @@ model CardAssignment {
 
   @@id([cardId, userId])
   @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  href      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+}
+
+model BoardActivity {
+  id        String       @id @default(cuid())
+  boardId   String
+  userId    String
+  type      ActivityType
+  // Texto legible: "movió 'Diseño UI' a En revisión"
+  summary   String
+  // Metadata opcional en JSON: { cardId, cardTitle, fromList, toList, ... }
+  meta      Json?
+  createdAt DateTime     @default(now())
+  board     Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
 }
 
 model Attachment {

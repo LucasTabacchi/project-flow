@@ -14,10 +14,6 @@ export function LoginScreen() {
     <AuthShell
       title="Bienvenido de nuevo"
       subtitle="Ingresá para revisar tableros, fechas de entrega y trabajo compartido."
-      asideLink={{
-        href: "/register",
-        label: "Crear cuenta",
-      }}
       footer={
         <>
           Si recibiste una invitación por email, iniciá sesión con esa misma

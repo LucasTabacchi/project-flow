@@ -2,22 +2,21 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { BOARD_PRESENCE_TTL_MS } from "@/lib/realtime-constants";
+import {
+  isRedisConfigured,
+  redisIncrBoardRevision,
+  redisSetBoardEvent,
+} from "@/lib/redis";
 import type { BoardPresenceView } from "@/types";
 
-type BoardRealtimeEvent =
-  | {
-      type: "board-updated";
-      updatedAt: string;
-    }
-  | {
-      type: "presence-updated";
-      presence: BoardPresenceView[];
-    }
-  | {
-      type: "board-removed";
-    };
+export type BoardRealtimeEvent =
+  | { type: "board-updated"; updatedAt: string }
+  | { type: "presence-updated"; presence: BoardPresenceView[] }
+  | { type: "board-removed" };
 
 type BoardRealtimeListener = (event: BoardRealtimeEvent) => void;
+
+// ─── Bus en memoria (fallback cuando Redis no está configurado) ───────────────
 
 declare global {
   var __projectflowBoardRealtimeListeners:
@@ -25,85 +24,88 @@ declare global {
     | undefined;
 }
 
-function getPresenceCutoffDate() {
-  return new Date(Date.now() - BOARD_PRESENCE_TTL_MS);
-}
-
 function getBoardRealtimeListeners() {
   if (!globalThis.__projectflowBoardRealtimeListeners) {
     globalThis.__projectflowBoardRealtimeListeners = new Map();
   }
-
   return globalThis.__projectflowBoardRealtimeListeners;
 }
 
-function publishBoardEvent(boardId: string, event: BoardRealtimeEvent) {
+function notifyLocalListeners(boardId: string, event: BoardRealtimeEvent) {
   const listeners = getBoardRealtimeListeners().get(boardId);
-
-  if (!listeners?.size) {
-    return;
-  }
+  if (!listeners?.size) return;
 
   for (const listener of [...listeners]) {
     try {
       listener(event);
     } catch {
-      // Ignore individual listener failures so a bad connection does not break the bus.
+      // Listener individual falla — no corta el resto
     }
   }
 }
+
+// ─── Publicación de eventos ───────────────────────────────────────────────────
+// Con Redis: guarda el evento + incrementa el revision counter.
+//            El SSE route detecta el cambio en el poll de Redis (cada 2s).
+// Sin Redis: notifica directamente los listeners en memoria (misma instancia).
+
+async function publishBoardEvent(boardId: string, event: BoardRealtimeEvent) {
+  // Siempre notificar listeners locales (misma instancia, respuesta inmediata)
+  notifyLocalListeners(boardId, event);
+
+  // Si Redis está configurado, persistir el evento para otras instancias
+  if (isRedisConfigured()) {
+    await Promise.all([
+      redisSetBoardEvent(boardId, JSON.stringify(event)),
+      redisIncrBoardRevision(boardId),
+    ]).catch(() => {
+      // Redis falla silenciosamente — el fallback poll de 30s cubre el gap
+    });
+  }
+}
+
+// ─── Suscripción ─────────────────────────────────────────────────────────────
 
 export function subscribeToBoardRealtime(
   boardId: string,
   listener: BoardRealtimeListener,
 ) {
   const listenersByBoard = getBoardRealtimeListeners();
-  const listeners = listenersByBoard.get(boardId) ?? new Set<BoardRealtimeListener>();
+  const listeners =
+    listenersByBoard.get(boardId) ?? new Set<BoardRealtimeListener>();
 
   listeners.add(listener);
   listenersByBoard.set(boardId, listeners);
 
   return () => {
-    const currentListeners = listenersByBoard.get(boardId);
-
-    if (!currentListeners) {
-      return;
-    }
-
-    currentListeners.delete(listener);
-
-    if (!currentListeners.size) {
-      listenersByBoard.delete(boardId);
-    }
+    const current = listenersByBoard.get(boardId);
+    if (!current) return;
+    current.delete(listener);
+    if (!current.size) listenersByBoard.delete(boardId);
   };
+}
+
+// ─── DB helpers ──────────────────────────────────────────────────────────────
+
+function getPresenceCutoffDate() {
+  return new Date(Date.now() - BOARD_PRESENCE_TTL_MS);
 }
 
 export async function getBoardSyncState(boardId: string) {
   return prisma.board.findUnique({
-    where: {
-      id: boardId,
-    },
-    select: {
-      id: true,
-      updatedAt: true,
-    },
+    where: { id: boardId },
+    select: { id: true, updatedAt: true },
   });
 }
 
 export async function touchBoard(boardId: string) {
   const board = await prisma.board.update({
-    where: {
-      id: boardId,
-    },
-    data: {
-      updatedAt: new Date(),
-    },
-    select: {
-      updatedAt: true,
-    },
+    where: { id: boardId },
+    data: { updatedAt: new Date() },
+    select: { updatedAt: true },
   });
 
-  publishBoardEvent(boardId, {
+  await publishBoardEvent(boardId, {
     type: "board-updated",
     updatedAt: board.updatedAt.toISOString(),
   });
@@ -113,17 +115,10 @@ export async function touchBoard(boardId: string) {
 
 export async function touchCard(cardId: string) {
   const card = await prisma.card.update({
-    where: {
-      id: cardId,
-    },
-    data: {
-      updatedAt: new Date(),
-    },
-    select: {
-      updatedAt: true,
-    },
+    where: { id: cardId },
+    data: { updatedAt: new Date() },
+    select: { updatedAt: true },
   });
-
   return card.updatedAt;
 }
 
@@ -131,9 +126,7 @@ export async function pruneBoardPresence(boardId: string) {
   await prisma.boardPresence.deleteMany({
     where: {
       boardId,
-      lastSeenAt: {
-        lt: getPresenceCutoffDate(),
-      },
+      lastSeenAt: { lt: getPresenceCutoffDate() },
     },
   });
 }
@@ -143,6 +136,7 @@ export async function upsertBoardPresence(input: {
   userId: string;
   clientId: string;
   activeCardId: string | null;
+  activeField: string | null;
 }) {
   const now = new Date();
 
@@ -159,10 +153,12 @@ export async function upsertBoardPresence(input: {
       userId: input.userId,
       clientId: input.clientId,
       activeCardId: input.activeCardId,
+      activeField: input.activeField,
       lastSeenAt: now,
     },
     update: {
       activeCardId: input.activeCardId,
+      activeField: input.activeField,
       lastSeenAt: now,
     },
   });
@@ -186,23 +182,16 @@ export async function getBoardPresence(boardId: string): Promise<BoardPresenceVi
   const rows = await prisma.boardPresence.findMany({
     where: {
       boardId,
-      lastSeenAt: {
-        gte: getPresenceCutoffDate(),
-      },
+      lastSeenAt: { gte: getPresenceCutoffDate() },
     },
-    orderBy: {
-      lastSeenAt: "desc",
-    },
+    orderBy: { lastSeenAt: "desc" },
     select: {
       userId: true,
       activeCardId: true,
+      activeField: true,
       lastSeenAt: true,
       user: {
-        select: {
-          name: true,
-          email: true,
-          avatarUrl: true,
-        },
+        select: { name: true, email: true, avatarUrl: true },
       },
     },
   });
@@ -219,6 +208,7 @@ export async function getBoardPresence(boardId: string): Promise<BoardPresenceVi
         email: row.user.email,
         avatarUrl: row.user.avatarUrl,
         activeCardId: row.activeCardId,
+        activeField: row.activeField,
         sessionCount: 1,
         lastSeenAt: row.lastSeenAt,
       });
@@ -226,52 +216,43 @@ export async function getBoardPresence(boardId: string): Promise<BoardPresenceVi
     }
 
     current.sessionCount += 1;
-
-    if (!current.activeCardId && row.activeCardId) {
-      current.activeCardId = row.activeCardId;
-    }
-
-    if (row.lastSeenAt > current.lastSeenAt) {
-      current.lastSeenAt = row.lastSeenAt;
-    }
+    if (!current.activeCardId && row.activeCardId) current.activeCardId = row.activeCardId;
+    if (!current.activeField && row.activeField) current.activeField = row.activeField;
+    if (row.lastSeenAt > current.lastSeenAt) current.lastSeenAt = row.lastSeenAt;
   }
 
   return [...aggregated.values()]
-    .sort((left, right) => right.lastSeenAt.getTime() - left.lastSeenAt.getTime())
-    .map((entry) => ({
-      userId: entry.userId,
-      name: entry.name,
-      email: entry.email,
-      avatarUrl: entry.avatarUrl,
-      activeCardId: entry.activeCardId,
-      sessionCount: entry.sessionCount,
+    .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime())
+    .map((e) => ({
+      userId: e.userId,
+      name: e.name,
+      email: e.email,
+      avatarUrl: e.avatarUrl,
+      activeCardId: e.activeCardId,
+      activeField: e.activeField,
+      sessionCount: e.sessionCount,
     }));
 }
 
-export function publishBoardPresence(
+export async function publishBoardPresence(
   boardId: string,
   presence: BoardPresenceView[],
 ) {
-  publishBoardEvent(boardId, {
-    type: "presence-updated",
-    presence,
-  });
+  await publishBoardEvent(boardId, { type: "presence-updated", presence });
 }
 
-export function publishBoardRemoved(boardId: string) {
-  publishBoardEvent(boardId, {
-    type: "board-removed",
-  });
+export async function publishBoardRemoved(boardId: string) {
+  await publishBoardEvent(boardId, { type: "board-removed" });
 }
 
 export function createPresenceFingerprint(presence: BoardPresenceView[]) {
   return JSON.stringify(
     presence
-      .map((entry) => ({
-        userId: entry.userId,
-        activeCardId: entry.activeCardId,
-        sessionCount: entry.sessionCount,
+      .map((e) => ({
+        userId: e.userId,
+        activeCardId: e.activeCardId,
+        sessionCount: e.sessionCount,
       }))
-      .sort((left, right) => left.userId.localeCompare(right.userId)),
+      .sort((a, b) => a.userId.localeCompare(b.userId)),
   );
 }

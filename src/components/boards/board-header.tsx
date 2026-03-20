@@ -5,18 +5,22 @@ import { useRouter } from "next/navigation";
 import {
   CircleCheckBig,
   Layers3,
+  LogOut,
   Settings2,
   Tags,
   Trash2,
   TriangleAlert,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   createLabelAction,
   deleteBoardAction,
+  leaveBoardAction,
   updateBoardAction,
 } from "@/app/actions/boards";
+import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
 import { InviteMemberDialog } from "@/components/boards/invite-member-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +76,9 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const mutateBoard = useBoardStore((state) => state.mutateBoard);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [theme, setTheme] = useState(board.theme);
@@ -131,6 +138,22 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
     });
   }
 
+  function handleLeaveBoard() {
+    startTransition(async () => {
+      const result = await leaveBoardAction({
+        boardId: board.id,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message ?? "Abandonaste el tablero.");
+      router.push("/dashboard");
+    });
+  }
+
   function handleCreateLabel() {
     startTransition(async () => {
       const result = await createLabelAction({
@@ -167,27 +190,26 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   return (
     <>
       <section className="glass-panel overflow-hidden rounded-[32px] border border-border">
-        <div className={`h-32 bg-gradient-to-r sm:h-40 ${themeConfig.gradientClass}`} />
-        <div className="-mt-8 space-y-5 px-4 pb-4 sm:-mt-10 sm:px-6 sm:pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-3">
-              <Badge className={themeConfig.chipClass}>{getRoleLabel(board.role)}</Badge>
-              <div>
-                <h2 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold">
-                  {board.name}
-                </h2>
-                <p className="mt-2 max-w-3xl text-muted-foreground">
-                  {board.description || "Este tablero todavía no tiene descripción."}
-                </p>
-              </div>
-            </div>
 
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+        {/* Banner gradiente — sin botones, solo visual */}
+        <div className={`h-32 bg-gradient-to-r sm:h-40 ${themeConfig.gradientClass}`} />
+
+        {/* Área inferior */}
+        <div className="-mt-8 space-y-5 px-4 pb-4 sm:-mt-10 sm:px-6 sm:pb-6">
+
+          <Badge className={themeConfig.chipClass}>{getRoleLabel(board.role)}</Badge>
+
+          {/* Título + botones en la misma fila */}
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold leading-tight">
+              {board.name}
+            </h2>
+            <div className="hidden shrink-0 items-center gap-2 pt-1 sm:flex">
               {board.permissions.canManageMembers ? (
                 <InviteMemberDialog boardId={board.id} />
               ) : null}
               {board.permissions.canEdit ? (
-                <Button variant="secondary" onClick={() => setLabelOpen(true)}>
+                <Button variant="secondary" onClick={() => setLabelOpen(true)} className="shrink-0">
                   <Tags className="size-4" />
                   Nueva etiqueta
                 </Button>
@@ -195,6 +217,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
               {board.permissions.canEdit ? (
                 <Button
                   variant="secondary"
+                  className="shrink-0"
                   onClick={() => {
                     setName(board.name);
                     setDescription(board.description ?? "");
@@ -206,7 +229,71 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                   Configurar
                 </Button>
               ) : null}
+              {board.permissions.canDelete ? (
+                <Button variant="destructive" className="shrink-0" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="size-4" />
+                  Eliminar
+                </Button>
+              ) : null}
+              {board.role !== "OWNER" ? (
+                <Button variant="secondary" className="shrink-0" onClick={() => setLeaveOpen(true)}>
+                  <LogOut className="size-4" />
+                  Dejar tablero
+                </Button>
+              ) : null}
+              <Button variant="secondary" className="shrink-0" onClick={() => setActivityOpen(true)}>
+                <Activity className="size-4" />
+                Actividad
+              </Button>
             </div>
+          </div>
+
+          <p className="mt-2 max-w-3xl text-muted-foreground">
+            {board.description || "Este tablero todavía no tiene descripción."}
+          </p>
+
+          {/* Botones mobile */}
+          <div className="flex flex-wrap gap-2 sm:hidden">
+            {board.permissions.canManageMembers ? (
+              <InviteMemberDialog boardId={board.id} />
+            ) : null}
+            {board.permissions.canEdit ? (
+              <Button variant="secondary" onClick={() => setLabelOpen(true)} className="shrink-0">
+                <Tags className="size-4" />
+                Nueva etiqueta
+              </Button>
+            ) : null}
+            {board.permissions.canEdit ? (
+              <Button
+                variant="secondary"
+                className="shrink-0"
+                onClick={() => {
+                  setName(board.name);
+                  setDescription(board.description ?? "");
+                  setTheme(board.theme);
+                  setSettingsOpen(true);
+                }}
+              >
+                <Settings2 className="size-4" />
+                Configurar
+              </Button>
+            ) : null}
+            {board.permissions.canDelete ? (
+              <Button variant="destructive" className="shrink-0" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="size-4" />
+                Eliminar
+              </Button>
+            ) : null}
+            {board.role !== "OWNER" ? (
+              <Button variant="secondary" className="shrink-0" onClick={() => setLeaveOpen(true)}>
+                <LogOut className="size-4" />
+                Dejar tablero
+              </Button>
+            ) : null}
+            <Button variant="secondary" className="shrink-0" onClick={() => setActivityOpen(true)}>
+              <Activity className="size-4" />
+              Actividad
+            </Button>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -353,27 +440,13 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
             </div>
           </div>
 
-          <DialogFooter className="justify-between gap-2 sm:justify-between">
-            {board.permissions.canDelete ? (
-              <Button
-                variant="destructive"
-                onClick={handleDeleteBoard}
-                disabled={isPending}
-              >
-                <Trash2 className="size-4" />
-                Eliminar tablero
-              </Button>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setSettingsOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleBoardSave} disabled={isPending}>
-                Guardar cambios
-              </Button>
-            </div>
+          <DialogFooter className="justify-end gap-2">
+            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleBoardSave} disabled={isPending}>
+              Guardar cambios
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -421,6 +494,64 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar el tablero?</DialogTitle>
+            <DialogDescription>
+              Vas a eliminar permanentemente <strong>{board.name}</strong> junto con todas sus listas, tarjetas, comentarios y adjuntos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
+            Esta acción es irreversible. Todos los miembros perderán el acceso inmediatamente.
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteBoard}
+              disabled={isPending}
+            >
+              <Trash2 className="size-4" />
+              {isPending ? "Eliminando..." : "Confirmar y eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Dejar el tablero?</DialogTitle>
+            <DialogDescription>
+              Vas a perder el acceso a <strong>{board.name}</strong> y a todas sus tarjetas. Solo el propietario puede volverte a invitar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl border border-warning-surface bg-warning-surface/40 px-4 py-3 text-sm text-warning-foreground">
+            Esta acción no se puede deshacer. Si fuiste invitado, necesitarás una nueva invitación para volver a acceder.
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setLeaveOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleLeaveBoard}
+              disabled={isPending}
+            >
+              <LogOut className="size-4" />
+              {isPending ? "Saliendo..." : "Confirmar y salir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <BoardActivityPanel
+        boardId={board.id}
+        open={activityOpen}
+        onClose={() => setActivityOpen(false)}
+      />
     </>
   );
 }

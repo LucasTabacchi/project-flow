@@ -204,7 +204,13 @@ export async function getDashboardData(
   const nextWeek = addDays(today, 7);
   const now = new Date();
 
-  const [boards, invitations] = await Promise.all([
+  // ─── MEJORA 2: upcomingCards en paralelo con boards e invitations ─────────
+  // Antes: boards+invitations en Promise.all, luego upcomingCards esperando
+  // boardIds → secuencial = mínimo 2 roundtrips en serie.
+  // Ahora: las 3 queries corren en paralelo usando un subquery JOIN en lugar
+  // de esperar el array de boardIds. Ahorra el tiempo de la query más lenta
+  // del primer grupo.
+  const [boards, invitations, upcomingCards] = await Promise.all([
     prisma.$queryRaw<DashboardBoardRow[]>(Prisma.sql`
       SELECT
         b.id,
@@ -272,47 +278,46 @@ export async function getDashboardData(
         createdAt: "desc",
       },
     }),
+    // Usamos un subquery JOIN en lugar de esperar boardIds del primer grupo
+    prisma.card.findMany({
+      where: {
+        board: {
+          members: {
+            some: { userId },
+          },
+        },
+        dueDate: {
+          gte: today,
+          lte: nextWeek,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueDate: true,
+        status: true,
+        priority: true,
+        boardId: true,
+        board: {
+          select: {
+            name: true,
+            theme: true,
+          },
+        },
+        listId: true,
+        list: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        dueDate: "asc",
+      },
+      take: 6,
+    }),
   ]);
-
-  const boardIds = boards.map((board) => board.id);
-  const upcomingCards = boardIds.length
-    ? await prisma.card.findMany({
-        where: {
-          boardId: {
-            in: boardIds,
-          },
-          dueDate: {
-            gte: today,
-            lte: nextWeek,
-          },
-        },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          dueDate: true,
-          status: true,
-          priority: true,
-          boardId: true,
-          board: {
-            select: {
-              name: true,
-              theme: true,
-            },
-          },
-          listId: true,
-          list: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: {
-          dueDate: "asc",
-        },
-        take: 6,
-      })
-    : [];
 
   const boardSummaries = boards.map((board) => ({
     id: board.id,

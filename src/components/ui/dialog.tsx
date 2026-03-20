@@ -49,7 +49,7 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          "glass-floating animate-enter fixed top-1/2 left-1/2 z-50 grid w-[min(94vw,920px)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[28px] border border-border p-4 duration-200 sm:w-[min(92vw,920px)] sm:rounded-[32px] sm:p-6",
+          "glass-floating animate-enter fixed top-1/2 left-1/2 z-50 grid w-[min(94vw,920px)] max-h-[90dvh] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-[28px] border border-border p-4 duration-200 sm:w-[min(92vw,920px)] sm:rounded-[32px] sm:p-6",
           className,
         )}
         {...props}

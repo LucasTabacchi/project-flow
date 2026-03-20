@@ -17,6 +17,8 @@ import {
 } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
+import { createNotification, createNotifications } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity";
 import {
   addChecklistItemSchema,
   addChecklistSchema,
@@ -69,6 +71,9 @@ async function getBoardCardRecord(boardId: string, cardId: string) {
       id: true,
       listId: true,
       completedAt: true,
+      assignments: {
+        select: { userId: true },
+      },
     },
   });
 }
@@ -233,6 +238,14 @@ export async function createCardAction(
     return failure("La tarjeta se creó pero no pudimos preparar la vista actualizada.");
   }
 
+  logActivity({
+    boardId: parsed.data.boardId,
+    userId: user.id,
+    type: "CARD_CREATED",
+    summary: `creó la tarjeta "${parsed.data.title}"`,
+    meta: { cardId: card.id, cardTitle: parsed.data.title, listName: list.name },
+  });
+
   return success(
     {
       cardId: card.id,
@@ -279,6 +292,14 @@ export async function updateCardAction(
     return failure(relationScope.message);
   }
 
+  // Detect newly assigned users (excluding the actor)
+  const previousAssigneeIds = new Set(
+    card.assignments?.map((a: { userId: string }) => a.userId) ?? []
+  );
+  const newlyAssignedIds = relationScope.assigneeIds.filter(
+    (id) => !previousAssigneeIds.has(id) && id !== user.id,
+  );
+
   await prisma.card.update({
     where: {
       id: parsed.data.cardId,
@@ -316,8 +337,67 @@ export async function updateCardAction(
   ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
+  // Notificar a usuarios recién asignados (fire-and-forget)
+  if (newlyAssignedIds.length && detail) {
+    createNotifications(
+      newlyAssignedIds.map((assigneeId) => ({
+        type: "CARD_ASSIGNED" as const,
+        userId: assigneeId,
+        actorName: user.name,
+        cardTitle: detail.title,
+        boardId: parsed.data.boardId,
+      })),
+    );
+  }
+
   if (!detail) {
     return failure("La tarjeta se actualizó pero no pudimos cargar la vista actualizada.");
+  }
+
+  // Log de actividad — detectar qué cambió
+  const oldStatus = card.status ?? null;
+  const newStatus = parsed.data.status;
+  const oldDueDate = card.dueDate ? card.dueDate.toISOString().split("T")[0] : null;
+  const newDueDate = parsed.data.dueDate ?? null;
+
+  if (oldStatus !== newStatus) {
+    logActivity({
+      boardId: parsed.data.boardId,
+      userId: user.id,
+      type: "CARD_STATUS_CHANGED",
+      summary: `cambió el estado de "${detail.title}" a ${newStatus}`,
+      meta: { cardId: detail.id, cardTitle: detail.title, oldValue: oldStatus ?? undefined, newValue: newStatus },
+    });
+  }
+
+  if (newlyAssignedIds.length) {
+    logActivity({
+      boardId: parsed.data.boardId,
+      userId: user.id,
+      type: "CARD_ASSIGNED",
+      summary: `asignó miembros a "${detail.title}"`,
+      meta: { cardId: detail.id, cardTitle: detail.title },
+    });
+  }
+
+  if (oldDueDate !== newDueDate) {
+    if (newDueDate) {
+      logActivity({
+        boardId: parsed.data.boardId,
+        userId: user.id,
+        type: "CARD_DUE_DATE_SET",
+        summary: `estableció fecha límite en "${detail.title}"`,
+        meta: { cardId: detail.id, cardTitle: detail.title, newValue: newDueDate },
+      });
+    } else {
+      logActivity({
+        boardId: parsed.data.boardId,
+        userId: user.id,
+        type: "CARD_DUE_DATE_REMOVED",
+        summary: `eliminó la fecha límite de "${detail.title}"`,
+        meta: { cardId: detail.id, cardTitle: detail.title },
+      });
+    }
   }
 
   return success(
@@ -400,20 +480,12 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
 
   const [boardLists, boardCards] = await Promise.all([
     prisma.list.findMany({
-      where: {
-        boardId: parsed.data.boardId,
-      },
-      select: {
-        id: true,
-      },
+      where: { boardId: parsed.data.boardId },
+      select: { id: true, name: true },
     }),
     prisma.card.findMany({
-      where: {
-        boardId: parsed.data.boardId,
-      },
-      select: {
-        id: true,
-      },
+      where: { boardId: parsed.data.boardId },
+      select: { id: true, listId: true, title: true },
     }),
   ]);
 
@@ -434,24 +506,53 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
     return failure("El orden enviado contiene elementos ajenos a este tablero.");
   }
 
+  // Detectar tarjetas que cambiaron de lista para loggear actividad
+  const listNameMap = new Map(boardLists.map((l) => [l.id, l.name]));
+  const cardMap = new Map(boardCards.map((c) => [c.id, c]));
+  const movedCards: Array<{ cardId: string; cardTitle: string; fromList: string; toList: string }> = [];
+
+  for (const list of parsed.data.lists) {
+    for (const cardId of list.cardIds) {
+      const card = cardMap.get(cardId);
+      if (card && card.listId !== list.id) {
+        movedCards.push({
+          cardId,
+          cardTitle: card.title,
+          fromList: listNameMap.get(card.listId) ?? card.listId,
+          toList: listNameMap.get(list.id) ?? list.id,
+        });
+      }
+    }
+  }
+
   const updates = parsed.data.lists.flatMap((list) =>
     list.cardIds.map((cardId, index) =>
       prisma.card.update({
-        where: {
-          id: cardId,
-        },
-        data: {
-          listId: list.id,
-          position: index,
-        },
+        where: { id: cardId },
+        data: { listId: list.id, position: index },
       }),
     ),
   );
 
   await prisma.$transaction(updates);
-
   await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
+
+  // Log de actividad para cada tarjeta movida entre listas
+  for (const moved of movedCards) {
+    logActivity({
+      boardId: parsed.data.boardId,
+      userId: user.id,
+      type: "CARD_MOVED",
+      summary: `movió "${moved.cardTitle}" de ${moved.fromList} a ${moved.toList}`,
+      meta: {
+        cardId: moved.cardId,
+        cardTitle: moved.cardTitle,
+        fromList: moved.fromList,
+        toList: moved.toList,
+      },
+    });
+  }
 
   return success(undefined, "Tarjetas reordenadas.");
 }
@@ -496,6 +597,64 @@ export async function addCommentAction(
   if (!detail) {
     return failure("El comentario se guardó pero no pudimos cargar la tarjeta actualizada.");
   }
+
+  // Notificar a asignados en la tarjeta (excepto al autor del comentario)
+  const assigneesToNotify = card.assignments
+    .map((a) => a.userId)
+    .filter((id) => id !== user.id);
+
+  if (assigneesToNotify.length) {
+    createNotifications(
+      assigneesToNotify.map((userId) => ({
+        type: "CARD_COMMENT" as const,
+        userId,
+        actorName: user.name,
+        cardTitle: detail.title,
+        boardId: parsed.data.boardId,
+      })),
+    );
+  }
+
+  // Detectar menciones @nombre en el cuerpo del comentario
+  const mentionMatches = parsed.data.body.match(/@[\w\u00C0-\u024F]+/g) ?? [];
+  if (mentionMatches.length) {
+    // Buscar miembros del tablero que coincidan con los nombres mencionados
+    const boardMembers = await prisma.boardMember.findMany({
+      where: { boardId: parsed.data.boardId },
+      select: { userId: true, user: { select: { name: true } } },
+    });
+
+    const mentionedUserIds = boardMembers
+      .filter((m) => {
+        const firstName = m.user.name.split(" ")[0].toLowerCase();
+        return mentionMatches.some(
+          (mention) => mention.slice(1).toLowerCase() === firstName,
+        );
+      })
+      .map((m) => m.userId)
+      // No notificar al autor ni a quienes ya recibieron CARD_COMMENT
+      .filter((id) => id !== user.id && !assigneesToNotify.includes(id));
+
+    if (mentionedUserIds.length) {
+      createNotifications(
+        mentionedUserIds.map((userId) => ({
+          type: "CARD_MENTION" as const,
+          userId,
+          actorName: user.name,
+          cardTitle: detail.title,
+          boardId: parsed.data.boardId,
+        })),
+      );
+    }
+  }
+
+  logActivity({
+    boardId: parsed.data.boardId,
+    userId: user.id,
+    type: "CARD_COMMENT_ADDED",
+    summary: `comentó en "${detail.title}"`,
+    meta: { cardId: detail.id, cardTitle: detail.title },
+  });
 
   return success(
     {

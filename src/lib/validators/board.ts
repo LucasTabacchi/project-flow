@@ -32,6 +32,10 @@ export const deleteBoardSchema = z.object({
   boardId: entityIdSchema,
 });
 
+export const leaveBoardSchema = z.object({
+  boardId: entityIdSchema,
+});
+
 export const createListSchema = z.object({
   boardId: entityIdSchema,
   name: z

@@ -6,6 +6,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -21,10 +22,11 @@ import { reorderListsAction } from "@/app/actions/boards";
 import { reorderCardsAction } from "@/app/actions/cards";
 import { AddListForm } from "@/components/boards/add-list-form";
 import { BoardColumn } from "@/components/boards/board-column";
-import { BoardFilters } from "@/components/boards/board-filters";
 import { BoardHeader } from "@/components/boards/board-header";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { KanbanSquare, CalendarDays } from "lucide-react";
 import { isCardOverdue } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardListView, BoardPageData, CardSummaryView } from "@/types";
@@ -47,6 +49,41 @@ const BoardRealtimeSync = dynamic(
   {
     ssr: false,
     loading: () => null,
+  },
+);
+
+// ─── MEJORA: BoardFilters cargado solo cuando el usuario lo necesita ──────────
+// Reduce el JS inicial del tablero — la mayoría de usuarios no filtra
+// inmediatamente al abrir un tablero.
+const BoardFilters = dynamic(
+  () =>
+    import("@/components/boards/board-filters").then((module) => ({
+      default: module.BoardFilters,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border border-border bg-card/70 p-4">
+        <div className="grid gap-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-10 animate-pulse rounded-xl bg-secondary" />
+          ))}
+        </div>
+      </div>
+    ),
+  },
+);
+
+const CalendarView = dynamic(
+  () =>
+    import("@/components/boards/calendar-view").then((module) => ({
+      default: module.CalendarView,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[500px] animate-pulse rounded-[28px] border border-border bg-card/70" />
+    ),
   },
 );
 
@@ -200,6 +237,8 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
   const selectedCardId = useBoardStore((state) => state.selectedCardId);
   const [activeCard, setActiveCard] = useState<CardSummaryView | null>(null);
   const [activeList, setActiveList] = useState<BoardListView | null>(null);
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"kanban" | "calendar">("kanban");
   const [isPending, startTransition] = useTransition();
   const deferredQuery = useDeferredValue(filters.query);
 
@@ -210,7 +249,17 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        // Desktop: necesita mover 6px antes de activar el drag
+        // Así un click normal nunca lo dispara accidentalmente
+        distance: 6,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        // Mobile: espera 200ms de press sostenido antes de activar drag
+        // Distingue un tap (click) de un press-and-drag
+        delay: 200,
+        tolerance: 8,
       },
     }),
   );
@@ -413,10 +462,41 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
         boardId={currentBoard.id}
         updatedAt={currentBoard.updatedAt}
         activeCardId={selectedCardId}
+        activeField={activeField}
         pauseSync={Boolean(activeCard || activeList || isPending)}
       />
-      <BoardFilters labels={currentBoard.labels} members={currentBoard.members} />
+      <BoardFilters boardId={currentBoard.id} labels={currentBoard.labels} members={currentBoard.members} />
 
+      {/* Toggle de vista: Kanban / Calendario */}
+      <div className="flex items-center gap-1 rounded-xl border border-border bg-card/70 p-1 w-fit">
+        <Button
+          variant={viewMode === "kanban" ? "default" : "ghost"}
+          size="sm"
+          className="gap-1.5 h-7 text-xs"
+          onClick={() => setViewMode("kanban")}
+        >
+          <KanbanSquare className="size-3.5" />
+          Tablero
+        </Button>
+        <Button
+          variant={viewMode === "calendar" ? "default" : "ghost"}
+          size="sm"
+          className="gap-1.5 h-7 text-xs"
+          onClick={() => setViewMode("calendar")}
+        >
+          <CalendarDays className="size-3.5" />
+          Calendario
+        </Button>
+      </div>
+
+      {/* Vista Calendario */}
+      {viewMode === "calendar" ? (
+        <CalendarView onOpenCard={openCard} />
+      ) : null}
+
+      {/* Vista Kanban */}
+      {viewMode === "kanban" ? (
+        <>
       {isFilteredView ? (
         <div className="flex flex-col items-start gap-2 rounded-[24px] border border-dashed border-border bg-card/70 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-3">
           <Badge variant="secondary">Vista filtrada</Badge>
@@ -478,6 +558,8 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
           description="Probá limpiar filtros o crear nuevas listas y tarjetas."
         />
       )}
+        </>
+      ) : null}
 
       {selectedCardId ? (
         <CardDetailDialog
@@ -488,12 +570,14 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
           onOpenChange={(open) => {
             if (!open) {
               closeCard();
+              setActiveField(null);
             }
           }}
           members={currentBoard.members}
           presence={currentBoard.presence}
           labels={currentBoard.labels}
           canEdit={currentBoard.permissions.canEdit}
+          onActiveFieldChange={setActiveField}
         />
       ) : null}
     </div>

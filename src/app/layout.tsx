@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
+import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 
 import { cn } from "@/lib/utils";
 
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plusjakarta",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "600", "700", "900"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -34,15 +36,15 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body
         className={cn(
-          manrope.variable,
-          spaceGrotesk.variable,
+          plusJakarta.variable,
+          fraunces.variable,
           "min-h-screen bg-background font-sans text-foreground antialiased",
         )}
       >
         <div className="relative min-h-screen overflow-x-hidden">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.22),transparent_22%),radial-gradient(circle_at_top_right,rgba(249,115,22,0.18),transparent_18%),linear-gradient(180deg,var(--background),color-mix(in_srgb,var(--background)_86%,white_14%))]"
+            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,rgba(13,148,136,0.16),transparent_30%),radial-gradient(ellipse_at_bottom_right,rgba(234,88,12,0.12),transparent_28%),radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.08),transparent_24%)]"
           />
           {children}
         </div>

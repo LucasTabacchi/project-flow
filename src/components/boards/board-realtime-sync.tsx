@@ -16,6 +16,7 @@ type BoardRealtimeSyncProps = {
   boardId: string;
   updatedAt: string;
   activeCardId: string | null;
+  activeField?: string | null;
   pauseSync?: boolean;
 };
 
@@ -32,10 +33,22 @@ function getPresenceClientId() {
   return nextValue;
 }
 
+// Backoff exponencial: 1s → 2s → 4s → 8s → 16s → 30s (cap)
+// Evita el thundering herd cuando muchos clientes reconectan a la vez
+// después de una interrupción.
+function getBackoffDelay(attempt: number): number {
+  const base = 1000;
+  const cap = 30000;
+  // Jitter aleatorio ±20% para desincronizar clientes concurrentes
+  const jitter = 0.8 + Math.random() * 0.4;
+  return Math.min(base * Math.pow(2, attempt) * jitter, cap);
+}
+
 export function BoardRealtimeSync({
   boardId,
   updatedAt,
   activeCardId,
+  activeField = null,
   pauseSync = false,
 }: BoardRealtimeSyncProps) {
   const router = useRouter();
@@ -47,6 +60,9 @@ export function BoardRealtimeSync({
   const pendingUpdatedAtRef = useRef<string | null>(null);
   const syncInFlightRef = useRef(false);
   const syncErrorShownRef = useRef(false);
+  // Track reconnect attempts for backoff
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     lastKnownUpdatedAtRef.current = updatedAt;
@@ -113,7 +129,7 @@ export function BoardRealtimeSync({
     setPresence(nextPresence);
   });
 
-  const sendPresenceHeartbeat = useEffectEvent(async (nextActiveCardId: string | null) => {
+  const sendPresenceHeartbeat = useEffectEvent(async (nextActiveCardId: string | null, nextActiveField: string | null = null) => {
     if (!clientId) {
       return;
     }
@@ -128,6 +144,7 @@ export function BoardRealtimeSync({
         body: JSON.stringify({
           clientId,
           activeCardId: nextActiveCardId,
+          activeField: nextActiveField,
         }),
       });
     } catch {
@@ -171,10 +188,10 @@ export function BoardRealtimeSync({
       return;
     }
 
-    void sendPresenceHeartbeat(activeCardId);
+    void sendPresenceHeartbeat(activeCardId, activeField);
 
     const intervalId = window.setInterval(() => {
-      void sendPresenceHeartbeat(activeCardId);
+      void sendPresenceHeartbeat(activeCardId, activeField);
     }, BOARD_PRESENCE_HEARTBEAT_MS);
 
     const handlePageHide = () => {
@@ -188,58 +205,89 @@ export function BoardRealtimeSync({
       window.removeEventListener("pagehide", handlePageHide);
       removePresence();
     };
-  }, [activeCardId, boardId, clientId]);
+  }, [activeCardId, activeField, boardId, clientId]);
 
+  // SSE connection con backoff exponencial en reconexión
   useEffect(() => {
-    const stream = new EventSource(
-      `/api/boards/${boardId}/events?since=${encodeURIComponent(
-        lastKnownUpdatedAtRef.current,
-      )}`,
-    );
+    let closed = false;
 
-    stream.onopen = () => {
-      setIsConnected(true);
-    };
+    function connect() {
+      if (closed) return;
 
-    stream.addEventListener("connected", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as {
-        updatedAt: string;
-        presence: BoardPresenceView[];
+      const stream = new EventSource(
+        `/api/boards/${boardId}/events?since=${encodeURIComponent(
+          lastKnownUpdatedAtRef.current,
+        )}`,
+      );
+
+      stream.onopen = () => {
+        // Conexión exitosa — resetear contador de intentos
+        reconnectAttemptsRef.current = 0;
+        setIsConnected(true);
       };
 
-      setIsConnected(true);
-      void updatePresence(payload.presence);
-    });
+      stream.addEventListener("connected", (event) => {
+        const payload = JSON.parse((event as MessageEvent<string>).data) as {
+          updatedAt: string;
+          presence: BoardPresenceView[];
+        };
 
-    stream.addEventListener("board-updated", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as {
-        updatedAt: string;
+        reconnectAttemptsRef.current = 0;
+        setIsConnected(true);
+        void updatePresence(payload.presence);
+      });
+
+      stream.addEventListener("board-updated", (event) => {
+        const payload = JSON.parse((event as MessageEvent<string>).data) as {
+          updatedAt: string;
+        };
+
+        setIsConnected(true);
+        queueOrSyncUpdate(payload.updatedAt);
+      });
+
+      stream.addEventListener("presence-updated", (event) => {
+        const payload = JSON.parse((event as MessageEvent<string>).data) as {
+          presence: BoardPresenceView[];
+        };
+
+        setIsConnected(true);
+        void updatePresence(payload.presence);
+      });
+
+      stream.addEventListener("board-removed", () => {
+        closed = true;
+        stream.close();
+        router.refresh();
+      });
+
+      stream.onerror = () => {
+        if (closed) return;
+
+        stream.close();
+        setIsConnected(false);
+
+        // Calcular delay con backoff exponencial + jitter
+        const attempt = reconnectAttemptsRef.current;
+        const delay = getBackoffDelay(attempt);
+        reconnectAttemptsRef.current = attempt + 1;
+
+        reconnectTimerRef.current = setTimeout(() => {
+          if (!closed) connect();
+        }, delay);
       };
 
-      setIsConnected(true);
-      queueOrSyncUpdate(payload.updatedAt);
-    });
+      return stream;
+    }
 
-    stream.addEventListener("presence-updated", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as {
-        presence: BoardPresenceView[];
-      };
-
-      setIsConnected(true);
-      void updatePresence(payload.presence);
-    });
-
-    stream.addEventListener("board-removed", () => {
-      stream.close();
-      router.refresh();
-    });
-
-    stream.onerror = () => {
-      setIsConnected(false);
-    };
+    connect();
 
     return () => {
-      stream.close();
+      closed = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
     };
   }, [boardId, router]);
 
@@ -249,8 +297,8 @@ export function BoardRealtimeSync({
 
   return (
     <div className="flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-200">
-      <span className="size-2 rounded-full bg-amber-500" />
-      Reconectando sincronizacion en vivo...
+      <span className="size-2 animate-pulse rounded-full bg-amber-500" />
+      Reconectando sincronización en vivo...
     </div>
   );
 }

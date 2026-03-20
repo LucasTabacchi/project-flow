@@ -223,6 +223,7 @@ function BoardColumnComponent({
             <BoardCard
               key={card.id}
               card={card}
+              boardId={boardId}
               onOpenCard={onOpenCard}
               disabled={!canEdit || disableInteractions}
             />

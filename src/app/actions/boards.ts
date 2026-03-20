@@ -5,6 +5,10 @@ import { addDays } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
+import { createNotification } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity";
+import { logActivity } from "@/lib/activity";
+
 import {
   failure,
   fromZodError,
@@ -26,6 +30,7 @@ import {
   createLabelSchema,
   createListSchema,
   deleteBoardSchema,
+  leaveBoardSchema,
   deleteListSchema,
   inviteMemberSchema,
   reorderListsSchema,
@@ -129,6 +134,8 @@ type PendingInvitationRecord = {
   role: "OWNER" | "EDITOR" | "VIEWER";
   token: string;
   expiresAt: Date;
+  invitedById: string;
+  board: { name: string };
 };
 
 function isInvitationExpired(expiresAt: Date) {
@@ -170,6 +177,12 @@ async function getPendingInvitationForEmail(
       role: true,
       token: true,
       expiresAt: true,
+      invitedById: true,
+      board: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -358,11 +371,44 @@ export async function deleteBoardAction(input: unknown): Promise<ActionResult> {
       id: parsed.data.boardId,
     },
   });
-  publishBoardRemoved(parsed.data.boardId);
+  await publishBoardRemoved(parsed.data.boardId);
 
   revalidatePath("/dashboard");
 
   return success(undefined, "Tablero eliminado.");
+}
+
+export async function leaveBoardAction(input: unknown): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = leaveBoardSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return fromZodError(parsed.error);
+  }
+
+  const membership = await getBoardMembership(parsed.data.boardId, user.id);
+
+  if (!membership) {
+    return failure("No tenés acceso a este tablero.");
+  }
+
+  if (membership.role === "OWNER") {
+    return failure("El propietario no puede abandonar el tablero. Transferí la propiedad o eliminá el tablero.");
+  }
+
+  await prisma.boardMember.delete({
+    where: {
+      boardId_userId: {
+        boardId: parsed.data.boardId,
+        userId: user.id,
+      },
+    },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/boards/${parsed.data.boardId}`);
+
+  return success(undefined, "Abandonaste el tablero.");
 }
 
 export async function createListAction(
@@ -401,6 +447,14 @@ export async function createListAction(
 
   const boardUpdatedAt = await touchBoard(parsed.data.boardId);
   revalidatePath(`/boards/${parsed.data.boardId}`);
+
+  logActivity({
+    boardId: parsed.data.boardId,
+    userId: user.id,
+    type: "LIST_CREATED",
+    summary: `creó la lista "${parsed.data.name}"`,
+    meta: { listName: parsed.data.name },
+  });
 
   return success(
     {
@@ -851,6 +905,29 @@ export async function acceptInvitationAction(
     await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
 
+    logActivity({
+      boardId: invitation.boardId,
+      userId: user.id,
+      type: "MEMBER_JOINED",
+      summary: `se unió al tablero`,
+    });
+
+    // Notificar al owner que alguien aceptó
+    createNotification({
+      type: "INVITATION_ACCEPTED",
+      userId: invitation.invitedById,
+      actorName: user.name,
+      boardName: invitation.board.name,
+      boardId: invitation.boardId,
+    });
+
+    logActivity({
+      boardId: invitation.boardId,
+      userId: user.id,
+      type: "MEMBER_JOINED",
+      summary: `se unió al tablero`,
+    });
+
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
   } catch (error) {
     logError("board.invitation.accept.failed", {
@@ -895,6 +972,15 @@ export async function declineInvitationAction(
     await declineInvitationRecord(invitation, user.id);
     await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
+
+    // Notificar al owner que alguien rechazó
+    createNotification({
+      type: "INVITATION_DECLINED",
+      userId: invitation.invitedById,
+      actorName: user.name,
+      boardName: invitation.board.name,
+      boardId: invitation.boardId,
+    });
 
     return success(undefined, "Invitación rechazada.");
   } catch (error) {
@@ -941,6 +1027,22 @@ export async function acceptInvitationByTokenAction(
     await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
 
+    // Notificar al owner que alguien aceptó vía token
+    createNotification({
+      type: "INVITATION_ACCEPTED",
+      userId: invitation.invitedById,
+      actorName: user.name,
+      boardName: invitation.board.name,
+      boardId: invitation.boardId,
+    });
+
+    logActivity({
+      boardId: invitation.boardId,
+      userId: user.id,
+      type: "MEMBER_JOINED",
+      summary: `se unió al tablero`,
+    });
+
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
   } catch (error) {
     logError("board.invitation.accept_by_token.failed", {
@@ -985,6 +1087,15 @@ export async function declineInvitationByTokenAction(
     await declineInvitationRecord(invitation, user.id);
     await touchBoard(invitation.boardId);
     revalidateInvitationPaths(invitation.boardId, invitation.token);
+
+    // Notificar al owner que alguien rechazó vía token
+    createNotification({
+      type: "INVITATION_DECLINED",
+      userId: invitation.invitedById,
+      actorName: user.name,
+      boardName: invitation.board.name,
+      boardId: invitation.boardId,
+    });
 
     return success(undefined, "Invitación rechazada.");
   } catch (error) {

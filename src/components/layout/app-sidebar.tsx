@@ -50,31 +50,61 @@ const navItems = [
 function SidebarBoardsSkeleton() {
   return (
     <>
-      <div className="mt-8 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold">Tableros activos</p>
-          <p className="text-xs text-muted-foreground">
-            Cargando accesos recientes...
-          </p>
-        </div>
-        <div className="h-6 w-10 animate-pulse rounded-full bg-secondary" />
+      <div className="mt-7 flex items-center justify-between px-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Tableros
+        </p>
+        <div className="h-4 w-7 animate-pulse rounded-full bg-secondary" />
       </div>
-
-      <div className="mt-4 space-y-3">
+      <div className="mt-2 space-y-1">
         {Array.from({ length: 3 }).map((_, index) => (
           <div
             key={index}
-            className="glass-panel flex items-start gap-3 rounded-[24px] border border-border p-4"
+            className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
           >
-            <div className="mt-1 size-3 rounded-full bg-secondary/80" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="h-4 w-3/4 animate-pulse rounded bg-secondary" />
-              <div className="h-3 w-1/2 animate-pulse rounded bg-secondary/70" />
+            <div className="size-2 rounded-full bg-muted-foreground/30 animate-pulse" />
+            <div className="min-w-0 flex-1">
+              <div className="h-3.5 w-3/4 animate-pulse rounded bg-secondary" />
             </div>
           </div>
         ))}
       </div>
     </>
+  );
+}
+
+function SidebarLogo() {
+  return (
+    <Link href="/dashboard" className="mb-7 flex items-center gap-3 group">
+      <div className="relative flex size-10 items-center justify-center">
+        <div className="absolute inset-0 brand-gradient rounded-[14px] opacity-90 group-hover:opacity-100 transition-opacity shadow-md" />
+        <KanbanSquare className="relative size-[18px] text-white" />
+      </div>
+      <div>
+        <div className="font-display text-[1.1rem] font-semibold leading-none tracking-tight">
+          ProjectFlow
+        </div>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          Workspace
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function UserCard({
+  user,
+}: {
+  user: { name: string; email: string; avatarUrl: string | null };
+}) {
+  return (
+    <div className="mb-5 flex items-center gap-3 rounded-2xl border border-border/60 bg-secondary/40 px-3 py-2.5">
+      <UserAvatar name={user.name} src={user.avatarUrl} className="size-8 shrink-0" />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold leading-snug">{user.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+      </div>
+    </div>
   );
 }
 
@@ -88,50 +118,29 @@ function AppSidebarSkeleton({
   };
 }) {
   return (
-    <aside className="hidden xl:block xl:w-[280px] xl:shrink-0 2xl:w-[310px]">
-      <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-4 py-5 2xl:px-5 2xl:py-6">
-        <Link href="/dashboard" className="mb-8 flex items-center gap-3">
-          <div className="brand-gradient flex size-12 items-center justify-center rounded-[20px] text-white shadow-lg">
-            <KanbanSquare className="size-6" />
-          </div>
-          <div>
-            <div className="font-display text-xl font-semibold">ProjectFlow</div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Board control hub
-            </p>
-          </div>
-        </Link>
-
-        <div className="glass-panel mb-6 rounded-[28px] border border-border p-4">
-          <div className="flex items-center gap-3">
-            <UserAvatar name={user.name} src={user.avatarUrl} className="size-12" />
-            <div className="min-w-0">
-              <p className="truncate font-semibold">{user.name}</p>
-              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="space-y-2">
+    <aside className="hidden xl:block xl:w-[260px] xl:shrink-0 2xl:w-[280px]">
+      <div className="sticky top-0 flex min-h-screen flex-col bg-sidebar-bg border-r border-sidebar-border px-4 py-5 2xl:px-5 2xl:py-6">
+        <SidebarLogo />
+        <UserCard user={user} />
+        <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Navegación
+        </p>
+        <nav className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
-
             return (
-              <NavLink key={item.href} href={item.href}>
-                <div className="flex size-9 items-center justify-center rounded-2xl bg-background/70 text-primary ring-1 ring-border">
+              <div
+                key={item.href}
+                className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted-foreground"
+              >
+                <div className="flex size-8 items-center justify-center rounded-xl bg-background/60">
                   <Icon className="size-4" />
                 </div>
-                <div className="min-w-0">
-                  <div>{item.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {item.description}
-                  </div>
-                </div>
-              </NavLink>
+                <span>{item.label}</span>
+              </div>
             );
           })}
         </nav>
-
         <SidebarBoardsSkeleton />
       </div>
     </aside>
@@ -140,45 +149,23 @@ function AppSidebarSkeleton({
 
 function AppSidebarComponent({ user }: AppSidebarProps) {
   return (
-    <aside className="hidden xl:block xl:w-[280px] xl:shrink-0 2xl:w-[310px]">
-      <div className="sticky top-0 flex min-h-screen flex-col border-r border-border/60 px-4 py-5 2xl:px-5 2xl:py-6">
-        <Link href="/dashboard" className="mb-8 flex items-center gap-3">
-          <div className="brand-gradient flex size-12 items-center justify-center rounded-[20px] text-white shadow-lg">
-            <KanbanSquare className="size-6" />
-          </div>
-          <div>
-            <div className="font-display text-xl font-semibold">ProjectFlow</div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Board control hub
-            </p>
-          </div>
-        </Link>
+    <aside className="hidden xl:block xl:w-[260px] xl:shrink-0 2xl:w-[280px]">
+      <div className="sticky top-0 flex min-h-screen flex-col bg-sidebar-bg border-r border-sidebar-border px-4 py-5 2xl:px-5 2xl:py-6">
+        <SidebarLogo />
+        <UserCard user={user} />
 
-        <div className="glass-panel mb-6 rounded-[28px] border border-border p-4">
-          <div className="flex items-center gap-3">
-            <UserAvatar name={user.name} src={user.avatarUrl} className="size-12" />
-            <div className="min-w-0">
-              <p className="truncate font-semibold">{user.name}</p>
-              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="space-y-2">
+        <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Navegación
+        </p>
+        <nav className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
-
             return (
               <NavLink key={item.href} href={item.href}>
-                <div className="flex size-9 items-center justify-center rounded-2xl bg-background/70 text-primary ring-1 ring-border">
+                <div className="flex size-8 items-center justify-center rounded-xl bg-background/70 text-primary ring-1 ring-border/50">
                   <Icon className="size-4" />
                 </div>
-                <div className="min-w-0">
-                  <div>{item.label}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {item.description}
-                  </div>
-                </div>
+                <span className="text-sm">{item.label}</span>
               </NavLink>
             );
           })}

@@ -17,6 +17,7 @@ export const runtime = "nodejs";
 const presencePayloadSchema = z.object({
   clientId: z.string().trim().min(1).max(120),
   activeCardId: z.string().trim().min(1).max(120).nullable().optional(),
+  activeField: z.string().trim().min(1).max(60).nullable().optional(),
 });
 
 type RouteContext = {
@@ -96,11 +97,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       userId: access.user.id,
       clientId: parsed.data.clientId,
       activeCardId: parsed.data.activeCardId ?? null,
+      activeField: parsed.data.activeField ?? null,
     }),
   ]);
 
   const presence = await getBoardPresence(boardId);
-  publishBoardPresence(boardId, presence);
+  await publishBoardPresence(boardId, presence);
 
   return new Response(null, {
     status: 204,
@@ -134,7 +136,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
   ]);
 
   const presence = await getBoardPresence(boardId);
-  publishBoardPresence(boardId, presence);
+  await publishBoardPresence(boardId, presence);
 
   return new Response(null, {
     status: 204,

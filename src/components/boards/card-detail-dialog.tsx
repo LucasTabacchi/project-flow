@@ -67,6 +67,7 @@ type CardDetailDialogProps = {
   presence: BoardPresenceView[];
   labels: LabelView[];
   canEdit: boolean;
+  onActiveFieldChange?: (field: string | null) => void;
 };
 
 function haveSameValues(left: string[], right: string[]) {
@@ -90,6 +91,7 @@ export function CardDetailDialog({
   presence,
   labels,
   canEdit,
+  onActiveFieldChange,
 }: CardDetailDialogProps) {
   const mutateBoard = useBoardStore((state) => state.mutateBoard);
   const [detail, setDetail] = useState<CardDetailView | null>(null);
@@ -109,6 +111,7 @@ export function CardDetailDialog({
   >({});
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
+  const [attachmentUrlError, setAttachmentUrlError] = useState("");
   const remoteNoticeRef = useRef<string | null>(null);
 
   function syncDetail(nextDetail: CardDetailView) {
@@ -128,7 +131,9 @@ export function CardDetailDialog({
     setChecklistTitle("");
     setAttachmentName("");
     setAttachmentUrl("");
+    setAttachmentUrlError("");
     setChecklistItemDrafts({});
+    onActiveFieldChange?.(null);
   }
 
   const refreshDetail = useCallback(async (currentCardId: string) => {
@@ -179,6 +184,25 @@ export function CardDetailDialog({
 
     return presence.filter((entry) => entry.activeCardId === detail.id);
   }, [detail, presence]);
+
+  // Helper: viewers editing a specific field (excluding self — we don't show our own cursor)
+  function getFieldEditors(field: string) {
+    return activeViewers.filter(
+      (v) => v.activeField === field,
+    );
+  }
+
+  // Small badge showing who's editing a field
+  function FieldEditorBadge({ field }: { field: string }) {
+    const editors = getFieldEditors(field);
+    if (!editors.length) return null;
+    return (
+      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        {editors.map((e) => e.name.split(" ")[0]).join(", ")} editando
+      </span>
+    );
+  }
 
   useEffect(() => {
     if (!open || !cardId) {
@@ -451,36 +475,50 @@ export function CardDetailDialog({
     );
   }
 
+  const [isAddingAttachment, startAttachmentTransition] = useTransition();
+
   async function handleAddAttachment() {
     if (!detail || !attachmentName.trim() || !attachmentUrl.trim()) {
       return;
     }
 
-    const result = await createAttachmentAction({
-      boardId,
-      cardId: detail.id,
-      name: attachmentName,
-      url: attachmentUrl,
+    // Client-side URL validation before hitting the server
+    try {
+      new URL(attachmentUrl.trim());
+      setAttachmentUrlError("");
+    } catch {
+      setAttachmentUrlError("Ingresá una URL válida (debe incluir https://).");
+      return;
+    }
+
+    startAttachmentTransition(async () => {
+      const result = await createAttachmentAction({
+        boardId,
+        cardId: detail.id,
+        name: attachmentName,
+        url: attachmentUrl,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      setAttachmentName("");
+      setAttachmentUrl("");
+      setAttachmentUrlError("");
+      toast.success(result.message ?? "Adjunto agregado.");
+      if (!result.data) {
+        toast.error("El adjunto se agregó, pero no pudimos refrescar la tarjeta.");
+        return;
+      }
+
+      const payload = result.data;
+      syncDetail(payload.detail);
+      mutateBoard((board) =>
+        replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+      );
     });
-
-    if (!result.ok) {
-      toast.error(result.message);
-      return;
-    }
-
-    setAttachmentName("");
-    setAttachmentUrl("");
-    toast.success(result.message ?? "Adjunto agregado.");
-    if (!result.data) {
-      toast.error("El adjunto se agregó, pero no pudimos refrescar la tarjeta.");
-      return;
-    }
-
-    const payload = result.data;
-    syncDetail(payload.detail);
-    mutateBoard((board) =>
-      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
-    );
   }
 
   return (
@@ -523,19 +561,29 @@ export function CardDetailDialog({
                 <ScrollArea className="mt-4 h-[min(52vh,32rem)] pr-2 sm:h-[58vh] sm:pr-4">
                   <TabsContent value="overview" className="space-y-5 pr-2">
                     <div className="space-y-2">
-                      <Label>Título</Label>
+                      <Label className="flex items-center">
+                        Título
+                        <FieldEditorBadge field="title" />
+                      </Label>
                       <Input
                         value={title}
                         onChange={(event) => setTitle(event.target.value)}
                         disabled={!canEdit}
+                        onFocus={() => onActiveFieldChange?.("title")}
+                        onBlur={() => onActiveFieldChange?.(null)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Descripción</Label>
+                      <Label className="flex items-center">
+                        Descripción
+                        <FieldEditorBadge field="description" />
+                      </Label>
                       <Textarea
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
                         disabled={!canEdit}
+                        onFocus={() => onActiveFieldChange?.("description")}
+                        onBlur={() => onActiveFieldChange?.(null)}
                       />
                     </div>
 
@@ -579,12 +627,17 @@ export function CardDetailDialog({
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Fecha límite</Label>
+                        <Label className="flex items-center">
+                          Fecha límite
+                          <FieldEditorBadge field="dueDate" />
+                        </Label>
                         <Input
                           type="date"
                           value={dueDate}
                           onChange={(event) => setDueDate(event.target.value)}
                           disabled={!canEdit}
+                          onFocus={() => onActiveFieldChange?.("dueDate")}
+                          onBlur={() => onActiveFieldChange?.(null)}
                         />
                       </div>
                     </div>
@@ -651,7 +704,10 @@ export function CardDetailDialog({
                         ))}
                       </div>
                       {canEdit ? (
-                        <Button onClick={handleSaveCard} disabled={isPending}>
+                        <Button
+                          onClick={handleSaveCard}
+                          disabled={isPending || !hasUnsavedCardChanges}
+                        >
                           {isPending ? "Guardando..." : "Guardar cambios"}
                         </Button>
                       ) : null}
@@ -663,13 +719,19 @@ export function CardDetailDialog({
                       <Input
                         value={checklistTitle}
                         onChange={(event) => setChecklistTitle(event.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddChecklist();
+                          }
+                        }}
                         placeholder="Nuevo checklist"
                         disabled={!canEdit}
                       />
                       <Button
                         type="button"
                         onClick={handleAddChecklist}
-                        disabled={!canEdit}
+                        disabled={!canEdit || !checklistTitle.trim()}
                       >
                         <SquareCheckBig className="size-4" />
                         Agregar
@@ -724,13 +786,19 @@ export function CardDetailDialog({
                                 [checklist.id]: event.target.value,
                               }))
                             }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddChecklistItem(checklist.id);
+                              }
+                            }}
                             placeholder="Nuevo item"
                             disabled={!canEdit}
                           />
                           <Button
                             type="button"
                             variant="secondary"
-                            disabled={!canEdit}
+                            disabled={!canEdit || !checklistItemDrafts[checklist.id]?.trim()}
                             onClick={() => handleAddChecklistItem(checklist.id)}
                           >
                             Agregar
@@ -745,37 +813,93 @@ export function CardDetailDialog({
                       <div className="mb-3 flex items-center gap-2">
                         <Paperclip className="size-4 text-primary" />
                         <h4 className="font-display text-lg font-semibold">Adjuntos</h4>
+                        {detail.attachments.length > 0 && (
+                          <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                            {detail.attachments.length}
+                          </span>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        {detail.attachments.map((attachment) => (
-                          <a
-                            key={attachment.id}
-                            href={attachment.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block rounded-2xl border border-border bg-card/70 px-3 py-3 text-sm transition hover:bg-card"
-                          >
-                            <p className="font-medium">{attachment.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {attachment.url}
-                            </p>
-                          </a>
-                        ))}
-                      </div>
+
+                      {detail.attachments.length > 0 ? (
+                        <div className="mb-3 space-y-2">
+                          {detail.attachments.map((attachment) => (
+                            <a
+                              key={attachment.id}
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3 text-sm transition hover:bg-card hover:border-primary/20"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{attachment.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {attachment.url}
+                                </p>
+                              </div>
+                              <svg className="size-3.5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Todavía no hay adjuntos en esta tarjeta.
+                        </p>
+                      )}
+
                       {canEdit ? (
-                        <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_auto]">
-                          <Input
-                            value={attachmentName}
-                            onChange={(event) => setAttachmentName(event.target.value)}
-                            placeholder="Nombre del adjunto"
-                          />
-                          <Input
-                            value={attachmentUrl}
-                            onChange={(event) => setAttachmentUrl(event.target.value)}
-                            placeholder="https://..."
-                          />
-                          <Button type="button" onClick={handleAddAttachment}>
-                            Agregar
+                        <div className="space-y-2 border-t border-border/60 pt-3">
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <Input
+                              value={attachmentName}
+                              onChange={(e) => setAttachmentName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddAttachment();
+                                }
+                              }}
+                              placeholder="Nombre del adjunto"
+                            />
+                            <div className="space-y-1">
+                              <Input
+                                value={attachmentUrl}
+                                onChange={(e) => {
+                                  setAttachmentUrl(e.target.value);
+                                  if (attachmentUrlError) setAttachmentUrlError("");
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddAttachment();
+                                  }
+                                }}
+                                placeholder="https://..."
+                                className={attachmentUrlError ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
+                              />
+                              {attachmentUrlError && (
+                                <p className="text-xs text-destructive">{attachmentUrlError}</p>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            className="w-full sm:w-auto"
+                            onClick={handleAddAttachment}
+                            disabled={isAddingAttachment || !attachmentName.trim() || !attachmentUrl.trim()}
+                          >
+                            {isAddingAttachment ? (
+                              <>
+                                <LoaderCircle className="size-4 animate-spin" />
+                                Agregando...
+                              </>
+                            ) : (
+                              <>
+                                <Paperclip className="size-4" />
+                                Agregar adjunto
+                              </>
+                            )}
                           </Button>
                         </div>
                       ) : null}
@@ -807,7 +931,11 @@ export function CardDetailDialog({
                             placeholder="Agregar comentario"
                             className="min-h-20"
                           />
-                          <Button type="button" onClick={handleAddComment}>
+                          <Button
+                            type="button"
+                            onClick={handleAddComment}
+                            disabled={!comment.trim()}
+                          >
                             <Send className="size-4" />
                           </Button>
                         </div>

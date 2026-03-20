@@ -48,6 +48,11 @@ export function ProfileForm({ data }: ProfileFormProps) {
   const [avatarUrl, setAvatarUrl] = useState(data.user.avatarUrl ?? "");
   const [bio, setBio] = useState(data.user.bio ?? "");
 
+  const isDirty =
+    name !== data.user.name ||
+    avatarUrl !== (data.user.avatarUrl ?? "") ||
+    bio !== (data.user.bio ?? "");
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -146,7 +151,7 @@ export function ProfileForm({ data }: ProfileFormProps) {
             </div>
 
             <div className="lg:col-span-2">
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || !isDirty}>
                 {isPending ? "Guardando..." : "Guardar perfil"}
               </Button>
             </div>

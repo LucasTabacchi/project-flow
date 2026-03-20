@@ -293,18 +293,16 @@ async function DashboardHero({
                 key={label}
                 className="glass-floating rounded-[24px] border border-border/70 px-4 py-4"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                    {label}
-                  </p>
-                  <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                    <Icon className="size-[18px]" />
-                  </div>
+                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                  <Icon className="size-4" />
                 </div>
-                <p className="mt-4 font-display text-[clamp(1.75rem,3vw,2.4rem)] font-semibold leading-none">
+                <p className="mt-3 font-display text-[clamp(1.75rem,3vw,2.4rem)] font-semibold leading-none">
                   {value}
                 </p>
-                <p className="mt-3 text-sm text-muted-foreground">
+                <p className="mt-2 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                  {label}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
                   {description}
                 </p>
               </div>

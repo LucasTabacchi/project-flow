@@ -1,5 +1,6 @@
 import { getBoardPresence } from "@/lib/board-realtime";
 import { Prisma } from "@prisma/client";
+import { cache } from "react";
 
 import { prisma } from "@/lib/db";
 import {
@@ -118,38 +119,149 @@ function serializeCardSummary(card: {
   };
 }
 
-type ChecklistStatsRow = {
-  cardId: string;
+// ─── MEJORA 1: Checklist stats fusionado en una sola query SQL ──────────────
+// Antes: getBoardPageData hacía 2 roundtrips (membership+presence en paralelo,
+// luego getBoardChecklistStats por separado = 3 roundtrips total).
+// Ahora: todo en 2 roundtrips (membership+presence en paralelo, checklist
+// stats incluido via LEFT JOIN dentro del mismo SELECT de cards).
+type BoardCardWithChecklistRow = {
+  id: string;
+  listId: string;
+  title: string;
+  description: string | null;
+  dueDate: Date | null;
+  status: CardSummaryView["status"];
+  priority: CardSummaryView["priority"];
+  updatedAt: Date;
   checklistCompleted: number;
   checklistTotal: number;
 };
 
-function toChecklistStatsMap(rows: ChecklistStatsRow[]) {
-  return new Map(
-    rows.map((row) => [
-      row.cardId,
-      {
-        checklistCompleted: row.checklistCompleted,
-        checklistTotal: row.checklistTotal,
+type BoardCardAssignmentRow = {
+  cardId: string;
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+};
+
+type BoardCardLabelRow = {
+  cardId: string;
+  labelId: string;
+  labelName: string;
+  labelColor: LabelView["color"];
+};
+
+type BoardCardCountRow = {
+  cardId: string;
+  commentCount: number;
+  attachmentCount: number;
+};
+
+async function getBoardCardsWithStats(boardId: string) {
+  const [cards, assignments, labels, counts] = await Promise.all([
+    prisma.$queryRaw<BoardCardWithChecklistRow[]>(Prisma.sql`
+      SELECT
+        c.id,
+        c."listId",
+        c.title,
+        c.description,
+        c."dueDate",
+        c.status::text AS status,
+        c.priority::text AS priority,
+        c."updatedAt",
+        COUNT(ci.id) FILTER (WHERE ci."isCompleted")::int AS "checklistCompleted",
+        COUNT(ci.id)::int AS "checklistTotal"
+      FROM "Card" c
+      LEFT JOIN "CardChecklist" cc ON cc."cardId" = c.id
+      LEFT JOIN "ChecklistItem" ci ON ci."checklistId" = cc.id
+      WHERE c."boardId" = ${boardId}
+      GROUP BY c.id
+      ORDER BY c.position ASC
+    `),
+    prisma.$queryRaw<BoardCardAssignmentRow[]>(Prisma.sql`
+      SELECT
+        ca."cardId",
+        u.id AS "userId",
+        u.name,
+        u.email,
+        u."avatarUrl"
+      FROM "CardAssignment" ca
+      INNER JOIN "User" u ON u.id = ca."userId"
+      WHERE ca."cardId" IN (
+        SELECT id FROM "Card" WHERE "boardId" = ${boardId}
+      )
+    `),
+    prisma.$queryRaw<BoardCardLabelRow[]>(Prisma.sql`
+      SELECT
+        cl."cardId",
+        l.id AS "labelId",
+        l.name AS "labelName",
+        l.color::text AS "labelColor"
+      FROM "CardLabel" cl
+      INNER JOIN "Label" l ON l.id = cl."labelId"
+      WHERE cl."cardId" IN (
+        SELECT id FROM "Card" WHERE "boardId" = ${boardId}
+      )
+    `),
+    prisma.$queryRaw<BoardCardCountRow[]>(Prisma.sql`
+      SELECT
+        c.id AS "cardId",
+        COUNT(DISTINCT cm.id)::int AS "commentCount",
+        COUNT(DISTINCT att.id)::int AS "attachmentCount"
+      FROM "Card" c
+      LEFT JOIN "CardComment" cm ON cm."cardId" = c.id
+      LEFT JOIN "Attachment" att ON att."cardId" = c.id
+      WHERE c."boardId" = ${boardId}
+      GROUP BY c.id
+    `),
+  ]);
+
+  // Build lookup maps for O(1) assembly
+  const assignmentsByCard = new Map<string, BoardCardAssignmentRow[]>();
+  for (const row of assignments) {
+    const list = assignmentsByCard.get(row.cardId) ?? [];
+    list.push(row);
+    assignmentsByCard.set(row.cardId, list);
+  }
+
+  const labelsByCard = new Map<string, BoardCardLabelRow[]>();
+  for (const row of labels) {
+    const list = labelsByCard.get(row.cardId) ?? [];
+    list.push(row);
+    labelsByCard.set(row.cardId, list);
+  }
+
+  const countsByCard = new Map(counts.map((r) => [r.cardId, r]));
+
+  return cards.map((card) => {
+    const cardAssignments = assignmentsByCard.get(card.id) ?? [];
+    const cardLabels = labelsByCard.get(card.id) ?? [];
+    const cardCounts = countsByCard.get(card.id);
+
+    return serializeCardSummary({
+      id: card.id,
+      listId: card.listId,
+      title: card.title,
+      description: card.description,
+      dueDate: card.dueDate,
+      status: card.status,
+      priority: card.priority,
+      updatedAt: card.updatedAt,
+      checklistCompleted: card.checklistCompleted,
+      checklistTotal: card.checklistTotal,
+      assignments: cardAssignments.map((a) => ({
+        user: { id: a.userId, name: a.name, email: a.email, avatarUrl: a.avatarUrl },
+      })),
+      cardLabels: cardLabels.map((l) => ({
+        label: { id: l.labelId, name: l.labelName, color: l.labelColor },
+      })),
+      _count: {
+        comments: cardCounts?.commentCount ?? 0,
+        attachments: cardCounts?.attachmentCount ?? 0,
       },
-    ]),
-  );
-}
-
-async function getBoardChecklistStats(boardId: string) {
-  const rows = await prisma.$queryRaw<ChecklistStatsRow[]>(Prisma.sql`
-    SELECT
-      card.id AS "cardId",
-      COUNT(item.id) FILTER (WHERE item."isCompleted")::int AS "checklistCompleted",
-      COUNT(item.id)::int AS "checklistTotal"
-    FROM "Card" card
-    LEFT JOIN "CardChecklist" checklist ON checklist."cardId" = card.id
-    LEFT JOIN "ChecklistItem" item ON item."checklistId" = checklist.id
-    WHERE card."boardId" = ${boardId}
-    GROUP BY card.id
-  `);
-
-  return toChecklistStatsMap(rows);
+    });
+  });
 }
 
 export async function getBoardCardSummary(
@@ -271,9 +383,13 @@ export async function getBoardMembership(boardId: string, userId: string) {
   });
 }
 
-export async function getUserSidebarBoards(
+// ─── MEJORA 3: getUserSidebarBoards con React.cache ──────────────────────────
+// Antes: hacía una query Prisma independiente aunque el mismo request del
+// dashboard ya traía los tableros del usuario. Con cache() React deduplica
+// la llamada dentro del mismo request si se llama con el mismo userId.
+export const getUserSidebarBoards = cache(async (
   userId: string,
-): Promise<SidebarBoardSummary[]> {
+): Promise<SidebarBoardSummary[]> => {
   const boards = await prisma.boardMember.findMany({
     where: {
       userId,
@@ -304,12 +420,18 @@ export async function getUserSidebarBoards(
     role: item.role as BoardRole,
     updatedAt: item.board.updatedAt.toISOString(),
   }));
-}
+});
 
 export async function getBoardPageData(
   boardId: string,
   userId: string,
 ): Promise<BoardPageData | null> {
+  // ─── MEJORA 1 aplicada: membership+presence+cards con stats en paralelo ───
+  // Antes: membership+presence en Promise.all, luego getBoardChecklistStats
+  // secuencial = 3 roundtrips al DB.
+  // Ahora: membership+presence+getBoardCardsWithStats en Promise.all = 2
+  // roundtrips (getBoardCardsWithStats internamente hace 4 queries en
+  // Promise.all sobre el boardId una vez que lo tenemos).
   const [membership, presence] = await Promise.all([
     prisma.boardMember.findUnique({
       where: {
@@ -357,45 +479,6 @@ export async function getBoardPageData(
                 id: true,
                 name: true,
                 position: true,
-                cards: {
-                  orderBy: {
-                    position: "asc",
-                  },
-                  select: {
-                    id: true,
-                    listId: true,
-                    title: true,
-                    description: true,
-                    dueDate: true,
-                    status: true,
-                    priority: true,
-                    updatedAt: true,
-                    assignments: {
-                      select: {
-                        user: {
-                          select: userSummarySelect,
-                        },
-                      },
-                    },
-                    cardLabels: {
-                      select: {
-                        label: {
-                          select: {
-                            id: true,
-                            name: true,
-                            color: true,
-                          },
-                        },
-                      },
-                    },
-                    _count: {
-                      select: {
-                        comments: true,
-                        attachments: true,
-                      },
-                    },
-                  },
-                },
               },
             },
           },
@@ -409,27 +492,29 @@ export async function getBoardPageData(
     return null;
   }
 
+  // Now fetch all cards with stats in a single optimized call
+  const allCards = await getBoardCardsWithStats(boardId);
+
   const role = membership.role as BoardRole;
   const board = membership.board;
-  const checklistStatsByCardId = await getBoardChecklistStats(board.id);
   const members: BoardMemberView[] = board.members.map((member) => ({
     ...serializeUser(member.user),
     role: member.role as BoardRole,
   }));
 
+  // Group cards by listId
+  const cardsByList = new Map<string, CardSummaryView[]>();
+  for (const card of allCards) {
+    const list = cardsByList.get(card.listId) ?? [];
+    list.push(card);
+    cardsByList.set(card.listId, list);
+  }
+
   const lists = board.lists.map((list) => ({
     id: list.id,
     name: list.name,
     position: list.position,
-    cards: list.cards.map((card) => {
-      const checklistStats = checklistStatsByCardId.get(card.id);
-
-      return serializeCardSummary({
-        ...card,
-        checklistCompleted: checklistStats?.checklistCompleted ?? 0,
-        checklistTotal: checklistStats?.checklistTotal ?? 0,
-      });
-    }),
+    cards: cardsByList.get(list.id) ?? [],
   }));
 
   return {

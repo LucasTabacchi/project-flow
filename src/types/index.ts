@@ -23,6 +23,7 @@ export type BoardMemberView = UserSummary & {
 
 export type BoardPresenceView = UserSummary & {
   activeCardId: string | null;
+  activeField: string | null;
   sessionCount: number;
 };
 

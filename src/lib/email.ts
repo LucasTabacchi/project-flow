@@ -4,7 +4,9 @@ import { logError, logWarn } from "@/lib/observability";
 import { formatFullDate, getRoleLabel } from "@/lib/utils";
 import type { BoardRole } from "@/types";
 
-const RESEND_API_URL = "https://api.resend.com/emails";
+// Brevo (ex Sendinblue) — permite enviar desde un Gmail verificado
+// sin necesitar un dominio propio. Plan gratuito: 300 emails/día.
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 type SendBoardInvitationEmailInput = {
   boardName: string;
@@ -16,13 +18,8 @@ type SendBoardInvitationEmailInput = {
 };
 
 type EmailDeliveryResult =
-  | {
-      sent: true;
-    }
-  | {
-      sent: false;
-      reason: string;
-    };
+  | { sent: true }
+  | { sent: false; reason: string };
 
 function escapeHtml(value: string) {
   return value
@@ -55,11 +52,7 @@ function getAppUrl() {
 
 export function buildInvitationUrl(token: string) {
   const appUrl = getAppUrl();
-
-  if (!appUrl) {
-    return null;
-  }
-
+  if (!appUrl) return null;
   return new URL(`/invite/${token}`, `${appUrl}/`).toString();
 }
 
@@ -118,13 +111,14 @@ function buildInvitationHtml({
 export async function sendBoardInvitationEmail(
   input: SendBoardInvitationEmailInput,
 ): Promise<EmailDeliveryResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.EMAIL_FROM_ADDRESS;
+  const fromName = process.env.EMAIL_FROM_NAME ?? "ProjectFlow";
 
-  if (!apiKey || !from) {
+  if (!apiKey || !fromEmail) {
     logWarn("email.invitation.skipped_missing_config", {
       hasApiKey: Boolean(apiKey),
-      hasFrom: Boolean(from),
+      hasFromEmail: Boolean(fromEmail),
       to: input.to,
       boardName: input.boardName,
     });
@@ -132,25 +126,26 @@ export async function sendBoardInvitationEmail(
     return {
       sent: false,
       reason:
-        "La invitación quedó creada, pero falta configurar RESEND_API_KEY y EMAIL_FROM para enviar el correo.",
+        "La invitación quedó creada, pero falta configurar BREVO_API_KEY y EMAIL_FROM_ADDRESS para enviar el correo.",
     };
   }
 
   let response: Response;
 
   try {
-    response = await fetch(RESEND_API_URL, {
+    response = await fetch(BREVO_API_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "api-key": apiKey,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
-        from,
-        to: [input.to],
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: input.to }],
         subject: `${input.invitedByName} te invitó a ${input.boardName} en ProjectFlow`,
-        html: buildInvitationHtml(input),
-        text: buildInvitationText(input),
+        htmlContent: buildInvitationHtml(input),
+        textContent: buildInvitationText(input),
       }),
     });
   } catch (error) {
@@ -185,7 +180,5 @@ export async function sendBoardInvitationEmail(
     };
   }
 
-  return {
-    sent: true,
-  };
+  return { sent: true };
 }
