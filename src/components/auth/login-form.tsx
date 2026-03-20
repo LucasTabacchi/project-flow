@@ -5,11 +5,12 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-import { loginAction, type AuthActionState } from "@/app/actions/auth";
+import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildAuthHref, getSafeRedirectTarget } from "@/lib/auth/navigation";
+import type { AuthActionState } from "@/types/action-contracts";
 
 function SubmitButton() {
   const { pending } = useFormStatus();

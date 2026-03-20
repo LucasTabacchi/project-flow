@@ -17,6 +17,7 @@ import { logError, logWarn } from "@/lib/observability";
 import { getPrismaErrorMessage } from "@/lib/prisma-error";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { loginSchema, registerSchema } from "@/lib/validators/auth";
+import type { AuthActionState } from "@/types/action-contracts";
 
 const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 8;
@@ -67,10 +68,6 @@ async function isAuthRateLimited(options: {
 
   return result.ok;
 }
-
-export type AuthActionState = ActionResult<{
-  redirectTo: string;
-}>;
 
 export async function loginAction(
   _prevState: AuthActionState | null,

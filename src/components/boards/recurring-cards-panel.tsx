@@ -11,7 +11,6 @@ import {
   deleteRecurringCardAction,
   listRecurringCardsAction,
   updateRecurringCardAction,
-  type RecurringCardView,
 } from "@/app/actions/recurring";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { CARD_PRIORITIES } from "@/lib/constants";
 import { cn, getPriorityLabel } from "@/lib/utils";
+import type { RecurringCardView } from "@/types/action-contracts";
 import type { BoardListView } from "@/types";
 
 const FREQUENCY_LABELS = {

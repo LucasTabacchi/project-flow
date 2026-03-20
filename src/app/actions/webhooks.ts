@@ -2,41 +2,14 @@
 
 import { randomBytes, createHmac } from "crypto";
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { failure, fromZodError, success, type ActionResult } from "@/lib/action-result";
 import { requireUser } from "@/lib/auth/session";
 import { getBoardMembership } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-export const WEBHOOK_EVENTS = [
-  "card.created",
-  "card.moved",
-  "card.status_changed",
-  "card.assigned",
-  "comment.added",
-  "list.created",
-  "member.joined",
-] as const;
-
-export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
-
-export type WebhookView = {
-  id: string;
-  url: string;
-  events: string[];
-  active: boolean;
-  secret: string;
-  createdAt: string;
-  recentDeliveries: {
-    id: string;
-    event: string;
-    success: boolean;
-    statusCode: number | null;
-    createdAt: string;
-  }[];
-};
+import { WEBHOOK_EVENTS, type WebhookEvent } from "@/lib/webhook-events";
+import type { WebhookView } from "@/types/action-contracts";
 
 // ── Validators ────────────────────────────────────────────────────────────────
 
@@ -237,7 +210,7 @@ export async function testWebhookAction(input: unknown): Promise<ActionResult> {
 
 // ── Dispatch engine (fire-and-forget for production use) ──────────────────────
 
-export type DispatchWebhookInput = {
+type DispatchWebhookInput = {
   webhookId: string;
   url: string;
   secret: string;
@@ -279,7 +252,7 @@ export async function dispatchWebhook(input: DispatchWebhookInput): Promise<{
       data: {
         webhookId: input.webhookId,
         event: input.event,
-        payload: input.payload,
+        payload: input.payload as Prisma.InputJsonValue,
         statusCode,
         success,
       },
@@ -293,40 +266,38 @@ export async function dispatchWebhook(input: DispatchWebhookInput): Promise<{
  * Dispatch an event to all active webhooks on a board that are subscribed to it.
  * Call this fire-and-forget from server actions.
  */
-export function fireBoardWebhooks(
+export async function fireBoardWebhooks(
   boardId: string,
   event: WebhookEvent,
   data: Record<string, unknown>,
-): void {
-  void (async () => {
-    try {
-      const webhooks = await prisma.webhook.findMany({
-        where: { boardId, active: true, events: { has: event } },
-        select: { id: true, url: true, secret: true },
-      });
+): Promise<void> {
+  try {
+    const webhooks = await prisma.webhook.findMany({
+      where: { boardId, active: true, events: { has: event } },
+      select: { id: true, url: true, secret: true },
+    });
 
-      if (!webhooks.length) return;
+    if (!webhooks.length) return;
 
-      const payload = {
-        event,
-        boardId,
-        timestamp: new Date().toISOString(),
-        data,
-      };
+    const payload = {
+      event,
+      boardId,
+      timestamp: new Date().toISOString(),
+      data,
+    };
 
-      await Promise.allSettled(
-        webhooks.map((wh) =>
-          dispatchWebhook({
-            webhookId: wh.id,
-            url: wh.url,
-            secret: wh.secret,
-            event,
-            payload,
-          }),
-        ),
-      );
-    } catch {
-      // Never throw — webhooks are best-effort
-    }
-  })();
+    await Promise.allSettled(
+      webhooks.map((wh) =>
+        dispatchWebhook({
+          webhookId: wh.id,
+          url: wh.url,
+          secret: wh.secret,
+          event,
+          payload,
+        }),
+      ),
+    );
+  } catch {
+    // Never throw — webhooks are best-effort
+  }
 }

@@ -10,14 +10,14 @@ import {
   listWebhooksAction,
   testWebhookAction,
   updateWebhookAction,
-  WEBHOOK_EVENTS,
-  type WebhookView,
 } from "@/app/actions/webhooks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WEBHOOK_EVENTS } from "@/lib/webhook-events";
 import { cn } from "@/lib/utils";
+import type { WebhookView } from "@/types/action-contracts";
 
 const EVENT_LABELS: Record<string, string> = {
   "card.created": "Tarjeta creada",

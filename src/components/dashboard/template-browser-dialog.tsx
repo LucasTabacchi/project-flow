@@ -9,7 +9,6 @@ import {
   createBoardFromTemplateAction,
   deleteTemplateAction,
   listBoardTemplatesAction,
-  type TemplateSummary,
 } from "@/app/actions/templates";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BOARD_THEMES, DEFAULT_BOARD_THEME } from "@/lib/constants";
 import { cn, getBoardTheme } from "@/lib/utils";
+import type { TemplateSummary } from "@/types/action-contracts";
 
 type TemplateBrowserDialogProps = {
   trigger?: React.ReactNode;

@@ -50,11 +50,12 @@ type UserAvatarProps = {
   name: string;
   src?: string | null;
   className?: string;
+  title?: string;
 };
 
-export function UserAvatar({ name, src, className }: UserAvatarProps) {
+export function UserAvatar({ name, src, className, title }: UserAvatarProps) {
   return (
-    <Avatar className={className}>
+    <Avatar className={className} title={title}>
       {src ? <AvatarImage src={src} alt={name} /> : null}
       <AvatarFallback>{getInitials(name)}</AvatarFallback>
     </Avatar>

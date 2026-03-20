@@ -6,21 +6,13 @@ import { failure, fromZodError, success, type ActionResult } from "@/lib/action-
 import { requireUser } from "@/lib/auth/session";
 import { getBoardMembership } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
-
-const ALLOWED_EMOJIS = ["👍", "❤️", "🎉", "😮", "😢", "🔥"] as const;
+import { ALLOWED_EMOJIS, type ReactionSummary } from "@/types/action-contracts";
 
 const toggleReactionSchema = z.object({
   boardId: z.string().min(1),
   commentId: z.string().min(1),
   emoji: z.enum(ALLOWED_EMOJIS),
 });
-
-export type ReactionSummary = {
-  emoji: string;
-  count: number;
-  reactedByMe: boolean;
-  userNames: string[];
-};
 
 export async function toggleReactionAction(
   input: unknown,
@@ -91,5 +83,3 @@ export async function getCommentReactions(
 
   return [...map.entries()].map(([emoji, data]) => ({ emoji, ...data }));
 }
-
-export { ALLOWED_EMOJIS };

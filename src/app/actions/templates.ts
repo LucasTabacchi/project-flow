@@ -8,37 +8,12 @@ import { getBoardMembership } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { touchBoard } from "@/lib/board-realtime";
 import { BOARD_THEMES } from "@/lib/constants";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export type TemplateCardSnapshot = {
-  title: string;
-  description: string | null;
-  priority: string;
-  status: string;
-};
-
-export type TemplateListSnapshot = {
-  name: string;
-  position: number;
-  cards: TemplateCardSnapshot[];
-};
-
-export type TemplateSnapshot = {
-  lists: TemplateListSnapshot[];
-};
-
-export type TemplateSummary = {
-  id: string;
-  name: string;
-  description: string | null;
-  theme: string;
-  isPublic: boolean;
-  listCount: number;
-  cardCount: number;
-  createdAt: string;
-  isOwn: boolean;
-};
+import type {
+  TemplateCardSnapshot,
+  TemplateListSnapshot,
+  TemplateSnapshot,
+  TemplateSummary,
+} from "@/types/action-contracts";
 
 // ── Validators ────────────────────────────────────────────────────────────────
 

@@ -39,10 +39,15 @@ function BoardCardComponent({
   });
 
   return (
-    <button
+    <article
       ref={setNodeRef}
-      type="button"
       onClick={() => onOpenCard(card.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpenCard(card.id);
+        }
+      }}
       className={cn(
         "focus-ring group w-full rounded-2xl border border-border/70 bg-card p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_8px_24px_-8px_rgba(11,107,99,0.18)]",
         isDragging && "opacity-50 shadow-2xl rotate-1 scale-[1.02]",
@@ -138,7 +143,7 @@ function BoardCardComponent({
           </span>
         </div>
       )}
-    </button>
+    </article>
   );
 }
 

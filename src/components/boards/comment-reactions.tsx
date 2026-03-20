@@ -4,12 +4,9 @@ import { useState, useTransition } from "react";
 import { SmilePlus } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  ALLOWED_EMOJIS,
-  toggleReactionAction,
-  type ReactionSummary,
-} from "@/app/actions/reactions";
+import { toggleReactionAction } from "@/app/actions/reactions";
 import { cn } from "@/lib/utils";
+import { ALLOWED_EMOJIS, type ReactionSummary } from "@/types/action-contracts";
 
 type CommentReactionsProps = {
   boardId: string;

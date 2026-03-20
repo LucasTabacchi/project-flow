@@ -4,11 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 
-import { registerAction, type AuthActionState } from "@/app/actions/auth";
+import { registerAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildAuthHref, getSafeRedirectTarget } from "@/lib/auth/navigation";
+import type { AuthActionState } from "@/types/action-contracts";
 
 function SubmitButton() {
   const { pending } = useFormStatus();

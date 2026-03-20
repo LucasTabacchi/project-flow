@@ -10,22 +10,7 @@ import { getBoardMembership } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
 import type { RecurrenceFrequency } from "@prisma/client";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export type RecurringCardView = {
-  id: string;
-  title: string;
-  description: string | null;
-  priority: string;
-  frequency: RecurrenceFrequency;
-  nextDueAt: string;
-  leadDays: number;
-  active: boolean;
-  listId: string;
-  listName: string;
-  createdAt: string;
-};
+import type { RecurringCardView } from "@/types/action-contracts";
 
 // ── Validators ────────────────────────────────────────────────────────────────
 
