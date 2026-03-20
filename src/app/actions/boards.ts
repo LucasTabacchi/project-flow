@@ -7,7 +7,6 @@ import { headers } from "next/headers";
 
 import { createNotification } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
-import { logActivity } from "@/lib/activity";
 
 import {
   failure,
