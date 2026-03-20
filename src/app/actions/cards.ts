@@ -20,6 +20,7 @@ import { canEditBoard } from "@/lib/permissions";
 import { createNotifications } from "@/lib/notifications";
 import { logActivity, getCardActivity } from "@/lib/activity";
 import { ActivityType } from "@prisma/client";
+import type { CardHistoryItem } from "@/types";
 import {
   addChecklistItemSchema,
   addChecklistSchema,
@@ -927,12 +928,20 @@ export async function createAttachmentAction(
 export async function getCardHistoryAction(
   boardId: string,
   cardId: string,
-) {
+): Promise<ActionResult<CardHistoryItem[]>> {
   const user = await requireUser();
   const membership = await getBoardMembership(boardId, user.id);
   if (!membership) return failure("No tenés acceso a este tablero.");
 
-  const history = await getCardActivity(cardId);
+  const history = (await getCardActivity(cardId)).map(
+    (item): CardHistoryItem => ({
+      id: item.id,
+      type: item.type,
+      summary: item.summary,
+      createdAt: item.createdAt.toISOString(),
+      user: item.user,
+    }),
+  );
   return success(history);
 }
 

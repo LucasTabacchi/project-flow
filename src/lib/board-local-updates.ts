@@ -65,6 +65,8 @@ export function summarizeCardDetail(detail: CardDetailView): CardSummaryView {
     checklistCompleted: checklistItems.filter((item) => item.isCompleted).length,
     checklistTotal: checklistItems.length,
     updatedAt: detail.updatedAt,
+    estimatedMinutes: detail.estimatedMinutes,
+    trackedMinutes: detail.trackedMinutes,
   };
 }
 

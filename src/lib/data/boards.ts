@@ -66,6 +66,8 @@ function serializeCardSummary(card: {
   status: CardSummaryView["status"];
   priority: CardSummaryView["priority"];
   updatedAt: Date;
+  estimatedMinutes: number | null;
+  trackedMinutes: number;
   assignments: Array<{
     user: {
       id: string;
@@ -116,6 +118,8 @@ function serializeCardSummary(card: {
     checklistCompleted,
     checklistTotal,
     updatedAt: card.updatedAt.toISOString(),
+    estimatedMinutes: card.estimatedMinutes,
+    trackedMinutes: card.trackedMinutes,
   };
 }
 
@@ -133,6 +137,8 @@ type BoardCardWithChecklistRow = {
   status: CardSummaryView["status"];
   priority: CardSummaryView["priority"];
   updatedAt: Date;
+  estimatedMinutes: number | null;
+  trackedMinutes: number;
   checklistCompleted: number;
   checklistTotal: number;
 };
@@ -170,6 +176,8 @@ async function getBoardCardsWithStats(boardId: string) {
         c.status::text AS status,
         c.priority::text AS priority,
         c."updatedAt",
+        c."estimatedMinutes",
+        c."trackedMinutes",
         COUNT(ci.id) FILTER (WHERE ci."isCompleted")::int AS "checklistCompleted",
         COUNT(ci.id)::int AS "checklistTotal"
       FROM "Card" c
@@ -248,6 +256,8 @@ async function getBoardCardsWithStats(boardId: string) {
       status: card.status,
       priority: card.priority,
       updatedAt: card.updatedAt,
+      estimatedMinutes: card.estimatedMinutes,
+      trackedMinutes: card.trackedMinutes,
       checklistCompleted: card.checklistCompleted,
       checklistTotal: card.checklistTotal,
       assignments: cardAssignments.map((a) => ({

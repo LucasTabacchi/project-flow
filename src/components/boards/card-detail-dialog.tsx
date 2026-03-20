@@ -411,7 +411,7 @@ export function CardDetailDialog({
     const result = await getCardHistoryAction(boardId, cardId);
     setHistoryLoading(false);
     if (result.ok && result.data) {
-      setHistory(result.data as CardHistoryItem[]);
+      setHistory(result.data);
       historyLoadedRef.current = cardId;
     }
   }
