@@ -57,6 +57,7 @@ async function getBoardListRecord(boardId: string, listId: string) {
     },
     select: {
       id: true,
+      name: true,
     },
   });
 }
