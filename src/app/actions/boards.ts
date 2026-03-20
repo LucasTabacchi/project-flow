@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 
 import { createNotification } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
+import { ActivityType } from "@prisma/client";
 
 import {
   failure,
@@ -450,7 +451,7 @@ export async function createListAction(
   logActivity({
     boardId: parsed.data.boardId,
     userId: user.id,
-    type: "LIST_CREATED",
+    type: ActivityType.LIST_CREATED,
     summary: `creó la lista "${parsed.data.name}"`,
     meta: { listName: parsed.data.name },
   });
@@ -907,7 +908,7 @@ export async function acceptInvitationAction(
     logActivity({
       boardId: invitation.boardId,
       userId: user.id,
-      type: "MEMBER_JOINED",
+      type: ActivityType.MEMBER_JOINED,
       summary: `se unió al tablero`,
     });
 
@@ -923,7 +924,7 @@ export async function acceptInvitationAction(
     logActivity({
       boardId: invitation.boardId,
       userId: user.id,
-      type: "MEMBER_JOINED",
+      type: ActivityType.MEMBER_JOINED,
       summary: `se unió al tablero`,
     });
 
@@ -1038,7 +1039,7 @@ export async function acceptInvitationByTokenAction(
     logActivity({
       boardId: invitation.boardId,
       userId: user.id,
-      type: "MEMBER_JOINED",
+      type: ActivityType.MEMBER_JOINED,
       summary: `se unió al tablero`,
     });
 

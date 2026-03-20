@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
 import { createNotification, createNotifications } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
+import { ActivityType } from "@prisma/client";
 import {
   addChecklistItemSchema,
   addChecklistSchema,
@@ -71,6 +72,9 @@ async function getBoardCardRecord(boardId: string, cardId: string) {
     select: {
       id: true,
       listId: true,
+      title: true,
+      status: true,
+      dueDate: true,
       completedAt: true,
       assignments: {
         select: { userId: true },
@@ -242,7 +246,7 @@ export async function createCardAction(
   logActivity({
     boardId: parsed.data.boardId,
     userId: user.id,
-    type: "CARD_CREATED",
+    type: ActivityType.CARD_CREATED,
     summary: `creó la tarjeta "${parsed.data.title}"`,
     meta: { cardId: card.id, cardTitle: parsed.data.title, listName: list.name },
   });
@@ -342,7 +346,7 @@ export async function updateCardAction(
   if (newlyAssignedIds.length && detail) {
     createNotifications(
       newlyAssignedIds.map((assigneeId) => ({
-        type: "CARD_ASSIGNED" as const,
+        type: ActivityType.CARD_ASSIGNED as const,
         userId: assigneeId,
         actorName: user.name,
         cardTitle: detail.title,
@@ -365,7 +369,7 @@ export async function updateCardAction(
     logActivity({
       boardId: parsed.data.boardId,
       userId: user.id,
-      type: "CARD_STATUS_CHANGED",
+      type: ActivityType.CARD_STATUS_CHANGED,
       summary: `cambió el estado de "${detail.title}" a ${newStatus}`,
       meta: { cardId: detail.id, cardTitle: detail.title, oldValue: oldStatus ?? undefined, newValue: newStatus },
     });
@@ -375,7 +379,7 @@ export async function updateCardAction(
     logActivity({
       boardId: parsed.data.boardId,
       userId: user.id,
-      type: "CARD_ASSIGNED",
+      type: ActivityType.CARD_ASSIGNED,
       summary: `asignó miembros a "${detail.title}"`,
       meta: { cardId: detail.id, cardTitle: detail.title },
     });
@@ -386,7 +390,7 @@ export async function updateCardAction(
       logActivity({
         boardId: parsed.data.boardId,
         userId: user.id,
-        type: "CARD_DUE_DATE_SET",
+        type: ActivityType.CARD_DUE_DATE_SET,
         summary: `estableció fecha límite en "${detail.title}"`,
         meta: { cardId: detail.id, cardTitle: detail.title, newValue: newDueDate },
       });
@@ -394,7 +398,7 @@ export async function updateCardAction(
       logActivity({
         boardId: parsed.data.boardId,
         userId: user.id,
-        type: "CARD_DUE_DATE_REMOVED",
+        type: ActivityType.CARD_DUE_DATE_REMOVED,
         summary: `eliminó la fecha límite de "${detail.title}"`,
         meta: { cardId: detail.id, cardTitle: detail.title },
       });
@@ -544,7 +548,7 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
     logActivity({
       boardId: parsed.data.boardId,
       userId: user.id,
-      type: "CARD_MOVED",
+      type: ActivityType.CARD_MOVED,
       summary: `movió "${moved.cardTitle}" de ${moved.fromList} a ${moved.toList}`,
       meta: {
         cardId: moved.cardId,
@@ -652,7 +656,7 @@ export async function addCommentAction(
   logActivity({
     boardId: parsed.data.boardId,
     userId: user.id,
-    type: "CARD_COMMENT_ADDED",
+    type: ActivityType.CARD_COMMENT_ADDED,
     summary: `comentó en "${detail.title}"`,
     meta: { cardId: detail.id, cardTitle: detail.title },
   });

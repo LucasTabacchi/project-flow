@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ActivityType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 export type ActivityMeta = {
@@ -16,7 +17,7 @@ export type ActivityMeta = {
 type LogActivityInput = {
   boardId: string;
   userId: string;
-  type: string;
+  type: ActivityType;
   summary: string;
   meta?: ActivityMeta;
 };
@@ -28,7 +29,7 @@ export function logActivity(input: LogActivityInput): void {
       data: {
         boardId: input.boardId,
         userId: input.userId,
-        type: input.type as never,
+        type: input.type,
         summary: input.summary,
         meta: input.meta ?? undefined,
       },

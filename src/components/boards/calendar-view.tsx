@@ -8,7 +8,6 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval,
 import { es } from "date-fns/locale";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { LABEL_COLOR_STYLES } from "@/lib/constants";
 import { cn, isCardOverdue } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";

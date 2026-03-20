@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck, Paperclip, MessageSquare, UserPlus, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bell, CheckCheck, Paperclip, MessageSquare, UserPlus, ThumbsUp, ThumbsDown, AtSign } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -27,6 +27,7 @@ type Notification = {
 const ICON_MAP: Record<string, React.ElementType> = {
   CARD_ASSIGNED: UserPlus,
   CARD_COMMENT: MessageSquare,
+  CARD_MENTION: AtSign,
   BOARD_INVITATION: Paperclip,
   INVITATION_ACCEPTED: ThumbsUp,
   INVITATION_DECLINED: ThumbsDown,
@@ -35,7 +36,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
 const TYPE_COLOR: Record<string, string> = {
   CARD_ASSIGNED: "bg-primary/10 text-primary",
   CARD_COMMENT: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-  BOARD_INVITATION: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  CARD_MENTION: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  BOARD_INVITATION: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   INVITATION_ACCEPTED: "bg-success-surface text-success-foreground",
   INVITATION_DECLINED: "bg-destructive/10 text-destructive",
 };
