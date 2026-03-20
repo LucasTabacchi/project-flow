@@ -18,7 +18,7 @@ import {
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
 import { createNotifications } from "@/lib/notifications";
-import { logActivity } from "@/lib/activity";
+import { logActivity, getCardActivity } from "@/lib/activity";
 import { ActivityType } from "@prisma/client";
 import {
   addChecklistItemSchema,
@@ -27,6 +27,8 @@ import {
   createAttachmentSchema,
   createCardSchema,
   deleteCardSchema,
+  deleteTimeEntrySchema,
+  logTimeSchema,
   reorderCardsSchema,
   toggleChecklistItemSchema,
   updateCardSchema,
@@ -317,6 +319,7 @@ export async function updateCardAction(
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
       completedAt:
         parsed.data.status === "DONE" ? card.completedAt ?? new Date() : null,
+      estimatedMinutes: parsed.data.estimatedMinutes ?? null,
       cardLabels: {
         deleteMany: {},
         createMany: {
@@ -913,4 +916,123 @@ export async function createAttachmentAction(
     },
     "Adjunto agregado.",
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RONDA 1 — NUEVAS ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Historial de tarjeta ───────────────────────────────────────────────────
+
+export async function getCardHistoryAction(
+  boardId: string,
+  cardId: string,
+) {
+  const user = await requireUser();
+  const membership = await getBoardMembership(boardId, user.id);
+  if (!membership) return failure("No tenés acceso a este tablero.");
+
+  const history = await getCardActivity(cardId);
+  return success(history);
+}
+
+// ── 2. Registrar tiempo manualmente ──────────────────────────────────────────
+
+export async function logTimeAction(
+  input: unknown,
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
+  const user = await requireUser();
+  const parsed = logTimeSchema.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+
+  const membership = await getBoardMembership(parsed.data.boardId, user.id);
+  if (!membership) return failure("No tenés acceso a este tablero.");
+
+  const card = await getBoardCardRecord(parsed.data.boardId, parsed.data.cardId);
+  if (!card) return failure("La tarjeta indicada no pertenece a este tablero.");
+
+  await prisma.$transaction([
+    prisma.timeEntry.create({
+      data: {
+        cardId: parsed.data.cardId,
+        userId: user.id,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        minutes: parsed.data.minutes,
+        note: parsed.data.note,
+      },
+    }),
+    prisma.card.update({
+      where: { id: parsed.data.cardId },
+      data: { trackedMinutes: { increment: parsed.data.minutes } },
+    }),
+  ]);
+
+  await touchCard(parsed.data.cardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
+  revalidatePath(`/boards/${parsed.data.boardId}`);
+
+  if (!detail) return failure("El tiempo se registró pero no pudimos cargar la tarjeta.");
+
+  logActivity({
+    boardId: parsed.data.boardId,
+    userId: user.id,
+    type: ActivityType.CARD_TIME_LOGGED,
+    summary: `registró ${parsed.data.minutes} min en "${detail.title}"`,
+    meta: { cardId: detail.id, cardTitle: detail.title, minutes: parsed.data.minutes },
+  });
+
+  return success({ detail, boardUpdatedAt: boardUpdatedAt.toISOString() }, "Tiempo registrado.");
+}
+
+// ── 3. Eliminar entrada de tiempo ─────────────────────────────────────────────
+
+export async function deleteTimeEntryAction(
+  input: unknown,
+): Promise<ActionResult<{ detail: NonNullable<Awaited<ReturnType<typeof getCardDetail>>>; boardUpdatedAt: string }>> {
+  const user = await requireUser();
+  const parsed = deleteTimeEntrySchema.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+
+  const membership = await getBoardMembership(parsed.data.boardId, user.id);
+  if (!membership) return failure("No tenés acceso a este tablero.");
+
+  // Solo el autor puede eliminar su propia entrada (o el owner del tablero)
+  const entry = await prisma.timeEntry.findFirst({
+    where: { id: parsed.data.entryId, cardId: parsed.data.cardId },
+    select: { id: true, userId: true, minutes: true },
+  });
+
+  if (!entry) return failure("La entrada de tiempo no existe.");
+
+  const isOwner = membership.role === "OWNER";
+  if (entry.userId !== user.id && !isOwner) {
+    return failure("Solo podés eliminar tus propias entradas de tiempo.");
+  }
+
+  await prisma.$transaction([
+    prisma.timeEntry.delete({ where: { id: parsed.data.entryId } }),
+    prisma.card.update({
+      where: { id: parsed.data.cardId },
+      data: {
+        trackedMinutes: {
+          decrement: entry.minutes ?? 0,
+        },
+      },
+    }),
+  ]);
+
+  await touchCard(parsed.data.cardId);
+  const [detail, boardUpdatedAt] = await Promise.all([
+    getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
+    touchBoard(parsed.data.boardId),
+  ]);
+  revalidatePath(`/boards/${parsed.data.boardId}`);
+
+  if (!detail) return failure("La entrada se eliminó pero no pudimos cargar la tarjeta.");
+
+  return success({ detail, boardUpdatedAt: boardUpdatedAt.toISOString() }, "Entrada eliminada.");
 }

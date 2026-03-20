@@ -603,6 +603,15 @@ export async function getCardDetail(
           createdAt: "desc",
         },
       },
+      // ── Ronda 1: time entries ──────────────────────────────────────────────
+      timeEntries: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: {
+          user: { select: userSummarySelect },
+        },
+      },
+      // ───────────────────────────────────────────────────────────────────────
     },
   });
 
@@ -650,5 +659,16 @@ export async function getCardDetail(
       mimeType: attachment.mimeType,
       createdAt: attachment.createdAt.toISOString(),
     })),
+    // ── Ronda 1 ────────────────────────────────────────────────────────────
+    estimatedMinutes: card.estimatedMinutes,
+    trackedMinutes: card.trackedMinutes,
+    timeEntries: card.timeEntries.map((entry) => ({
+      id: entry.id,
+      minutes: entry.minutes ?? 0,
+      note: entry.note,
+      createdAt: entry.createdAt.toISOString(),
+      user: serializeUser(entry.user),
+    })),
+    // ───────────────────────────────────────────────────────────────────────
   };
 }

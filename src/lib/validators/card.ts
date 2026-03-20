@@ -48,6 +48,15 @@ export const updateCardSchema = z.object({
   status: z.enum(CARD_STATUSES),
   labelIds: z.array(entityIdSchema).default([]),
   assigneeIds: z.array(entityIdSchema).default([]),
+  // ── Ronda 1: tiempo estimado ──────────────────────────────────────────────
+  estimatedMinutes: z
+    .number()
+    .int("El tiempo estimado debe ser un número entero.")
+    .min(0, "El tiempo estimado no puede ser negativo.")
+    .max(99999, "El tiempo estimado es demasiado grande.")
+    .nullable()
+    .optional(),
+  // ─────────────────────────────────────────────────────────────────────────
 });
 
 export const deleteCardSchema = z.object({
@@ -115,3 +124,29 @@ export const createAttachmentSchema = z.object({
     .url("Ingresá una URL válida.")
     .max(500, "La URL es demasiado larga."),
 });
+
+// ── Ronda 1: tiempo tracking ──────────────────────────────────────────────────
+
+export const logTimeSchema = z.object({
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
+  minutes: z
+    .number()
+    .int("Los minutos deben ser un número entero.")
+    .min(1, "El tiempo debe ser mayor a 0.")
+    .max(1440, "No podés registrar más de 24 horas de una vez."),
+  note: z
+    .string()
+    .trim()
+    .max(200, "La nota es demasiado larga.")
+    .optional()
+    .transform((v) => v || undefined),
+});
+
+export const deleteTimeEntrySchema = z.object({
+  boardId: entityIdSchema,
+  cardId: entityIdSchema,
+  entryId: entityIdSchema,
+});
+
+// ─────────────────────────────────────────────────────────────────────────────

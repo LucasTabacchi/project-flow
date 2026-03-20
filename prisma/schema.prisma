@@ -65,6 +65,8 @@ enum ActivityType {
   LIST_CREATED
   LIST_RENAMED
   MEMBER_JOINED
+  // Nuevos para Ronda 1
+  CARD_TIME_LOGGED
 }
 
 model User {
@@ -89,6 +91,7 @@ model User {
   boardPresences          BoardPresence[]
   notifications           Notification[]
   activities              BoardActivity[]
+  timeEntries             TimeEntry[]
 }
 
 model Session {
@@ -174,34 +177,57 @@ model List {
 }
 
 model Card {
-  id          String        @id @default(cuid())
-  boardId     String
-  listId      String
-  createdById String
-  title       String
-  description String?
-  position    Int
-  status      CardStatus    @default(TODO)
-  priority    CardPriority  @default(MEDIUM)
-  dueDate     DateTime?
-  completedAt DateTime?
-  coverColor  String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  board       Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  list        List          @relation(fields: [listId], references: [id], onDelete: Cascade)
-  createdBy   User          @relation("CardCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  comments    CardComment[]
-  checklists  CardChecklist[]
-  cardLabels  CardLabel[]
-  assignments CardAssignment[]
-  attachments Attachment[]
-  presences   BoardPresence[]
+  id                String          @id @default(cuid())
+  boardId           String
+  listId            String
+  createdById       String
+  title             String
+  description       String?
+  position          Int
+  status            CardStatus      @default(TODO)
+  priority          CardPriority    @default(MEDIUM)
+  dueDate           DateTime?
+  completedAt       DateTime?
+  coverColor        String?
+  // ── Ronda 1: tiempo estimado y tracking ──
+  estimatedMinutes  Int?
+  trackedMinutes    Int             @default(0)
+  // ──────────────────────────────────────────
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  board             Board           @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list              List            @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdBy         User            @relation("CardCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  comments          CardComment[]
+  checklists        CardChecklist[]
+  cardLabels        CardLabel[]
+  assignments       CardAssignment[]
+  attachments       Attachment[]
+  presences         BoardPresence[]
+  timeEntries       TimeEntry[]
 
   @@index([boardId, dueDate])
   @@index([boardId, status])
   @@index([listId, position])
 }
+
+// ── Ronda 1: registro de sesiones de trabajo ──────────────────────────────────
+model TimeEntry {
+  id         String    @id @default(cuid())
+  cardId     String
+  userId     String
+  startedAt  DateTime
+  endedAt    DateTime?
+  minutes    Int?
+  note       String?
+  createdAt  DateTime  @default(now())
+  card       Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, startedAt])
+  @@index([userId, startedAt])
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 model BoardPresence {
   id           String   @id @default(cuid())

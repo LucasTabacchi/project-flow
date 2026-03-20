@@ -1,7 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { LoaderCircle, Paperclip, Send, SquareCheckBig, Trash2 } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import {
+  Clock,
+  History,
+  LoaderCircle,
+  Paperclip,
+  Play,
+  Send,
+  Square,
+  SquareCheckBig,
+  Timer,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,7 +29,10 @@ import {
   addCommentAction,
   createAttachmentAction,
   deleteCardAction,
+  deleteTimeEntryAction,
   getCardDetailAction,
+  getCardHistoryAction,
+  logTimeAction,
   toggleChecklistItemAction,
   updateCardAction,
 } from "@/app/actions/cards";
@@ -40,7 +62,11 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { CARD_PRIORITIES, CARD_STATUSES, LABEL_COLOR_STYLES } from "@/lib/constants";
+import {
+  CARD_PRIORITIES,
+  CARD_STATUSES,
+  LABEL_COLOR_STYLES,
+} from "@/lib/constants";
 import {
   formatFullDate,
   formatRelativeDistance,
@@ -53,6 +79,7 @@ import type {
   BoardMemberView,
   BoardPresenceView,
   CardDetailView,
+  CardHistoryItem,
   LabelView,
 } from "@/types";
 import { useBoardStore } from "@/stores/board-store";
@@ -71,15 +98,167 @@ type CardDetailDialogProps = {
 };
 
 function haveSameValues(left: string[], right: string[]) {
-  if (left.length !== right.length) {
-    return false;
+  if (left.length !== right.length) return false;
+  const l = [...left].sort();
+  const r = [...right].sort();
+  return l.every((v, i) => v === r[i]);
+}
+
+function formatMinutes(total: number): string {
+  if (total <= 0) return "0m";
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function timeProgress(tracked: number, estimated: number): number {
+  if (!estimated) return 0;
+  return Math.min(100, Math.round((tracked / estimated) * 100));
+}
+
+// ── Textarea con autocompletado @menciones ────────────────────────────────────
+
+type MentionTextareaProps = {
+  value: string;
+  onChange: (v: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  members: BoardMemberView[];
+  className?: string;
+};
+
+function MentionTextarea({
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  disabled,
+  members,
+  className,
+}: MentionTextareaProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [suggestions, setSuggestions] = useState<BoardMemberView[]>([]);
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  function detectMention(text: string, cursor: number) {
+    const before = text.slice(0, cursor);
+    const match = before.match(/@([\w\u00C0-\u024F]*)$/);
+    if (!match) {
+      setSuggestions([]);
+      setMentionStart(null);
+      return;
+    }
+    const query = match[1].toLowerCase();
+    const start = cursor - match[0].length;
+    setMentionStart(start);
+    setSuggestions(
+      members.filter(
+        (m) =>
+          m.name.toLowerCase().includes(query) ||
+          m.email.toLowerCase().includes(query),
+      ),
+    );
+    setActiveIdx(0);
   }
 
-  const leftValues = [...left].sort();
-  const rightValues = [...right].sort();
+  function applyMention(member: BoardMemberView) {
+    if (mentionStart === null) return;
+    const cursor = textareaRef.current?.selectionStart ?? value.length;
+    const before = value.slice(0, mentionStart);
+    const after = value.slice(cursor);
+    const firstName = member.name.split(" ")[0];
+    const next = `${before}@${firstName} ${after}`;
+    onChange(next);
+    setSuggestions([]);
+    setMentionStart(null);
+    requestAnimationFrame(() => {
+      const pos = mentionStart + firstName.length + 2;
+      textareaRef.current?.setSelectionRange(pos, pos);
+      textareaRef.current?.focus();
+    });
+  }
 
-  return leftValues.every((value, index) => value === rightValues[index]);
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    onChange(e.target.value);
+    detectMention(e.target.value, e.target.selectionStart);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIdx((i) => (i + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIdx((i) => (i - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        applyMention(suggestions[activeIdx]);
+        return;
+      }
+      if (e.key === "Escape") {
+        setSuggestions([]);
+        setMentionStart(null);
+        return;
+      }
+    }
+    onKeyDown?.(e);
+  }
+
+  return (
+    <div className="relative w-full">
+      <Textarea
+        ref={textareaRef}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={className}
+      />
+      {suggestions.length > 0 && (
+        <ul className="absolute bottom-full left-0 z-50 mb-1 w-full max-h-44 overflow-auto rounded-2xl border border-border bg-popover shadow-lg">
+          {suggestions.map((m, i) => (
+            <li key={m.userId}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyMention(m);
+                }}
+                className={`flex w-full items-center gap-3 px-3 py-2 text-sm transition ${
+                  i === activeIdx ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                }`}
+              >
+                <UserAvatar
+                  name={m.name}
+                  src={m.avatarUrl}
+                  className="size-7 shrink-0"
+                />
+                <div className="min-w-0 text-left">
+                  <p className="font-medium truncate">{m.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {m.email}
+                  </p>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
+
+// ── Componente principal ──────────────────────────────────────────────────────
 
 export function CardDetailDialog({
   boardId,
@@ -97,6 +276,7 @@ export function CardDetailDialog({
   const [detail, setDetail] = useState<CardDetailView | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -104,6 +284,8 @@ export function CardDetailDialog({
   const [status, setStatus] = useState("TODO");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [estimatedMinutes, setEstimatedMinutes] = useState<string>("");
+
   const [comment, setComment] = useState("");
   const [checklistTitle, setChecklistTitle] = useState("");
   const [checklistItemDrafts, setChecklistItemDrafts] = useState<
@@ -112,7 +294,127 @@ export function CardDetailDialog({
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [attachmentUrlError, setAttachmentUrlError] = useState("");
+  const [isAddingAttachment, startAttachmentTransition] = useTransition();
+
+  // time tracking
+  const [timerActive, setTimerActive] = useState(false);
+  const [timerStart, setTimerStart] = useState<number | null>(null);
+  const [timerDisplay, setTimerDisplay] = useState("00:00");
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [manualMinutes, setManualMinutes] = useState("");
+  const [manualNote, setManualNote] = useState("");
+  const [isLoggingTime, startLogTimeTransition] = useTransition();
+
+  // history
+  const [history, setHistory] = useState<CardHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const historyLoadedRef = useRef<string | null>(null);
+
   const remoteNoticeRef = useRef<string | null>(null);
+
+  // Timer tick
+  useEffect(() => {
+    if (timerActive && timerStart !== null) {
+      timerIntervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+        const mm = Math.floor(elapsed / 60).toString().padStart(2, "0");
+        const ss = (elapsed % 60).toString().padStart(2, "0");
+        setTimerDisplay(`${mm}:${ss}`);
+      }, 1000);
+    } else {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      if (!timerActive) setTimerDisplay("00:00");
+    }
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    };
+  }, [timerActive, timerStart]);
+
+  useEffect(() => {
+    if (!open) {
+      setTimerActive(false);
+      setTimerStart(null);
+    }
+  }, [open]);
+
+  function handleStartTimer() {
+    setTimerActive(true);
+    setTimerStart(Date.now());
+  }
+
+  function handleStopTimer() {
+    if (!timerStart || !detail) return;
+    const mins = Math.max(1, Math.round((Date.now() - timerStart) / 60000));
+    setTimerActive(false);
+    setTimerStart(null);
+    startLogTimeTransition(async () => {
+      const result = await logTimeAction({
+        boardId,
+        cardId: detail.id,
+        minutes: mins,
+        note: "Registrado con el timer",
+      });
+      if (!result.ok) { toast.error(result.message); return; }
+      toast.success(`Timer detenido — ${formatMinutes(mins)} registrados.`);
+      if (result.data) {
+        syncDetail(result.data.detail);
+        mutateBoard((board) =>
+          replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
+        );
+      }
+    });
+  }
+
+  async function handleLogManualTime() {
+    if (!detail) return;
+    const mins = parseInt(manualMinutes, 10);
+    if (!mins || mins < 1) { toast.error("Ingresá una cantidad válida de minutos."); return; }
+    startLogTimeTransition(async () => {
+      const result = await logTimeAction({
+        boardId,
+        cardId: detail.id,
+        minutes: mins,
+        note: manualNote || undefined,
+      });
+      if (!result.ok) { toast.error(result.message); return; }
+      toast.success(result.message ?? "Tiempo registrado.");
+      setManualMinutes("");
+      setManualNote("");
+      if (result.data) {
+        syncDetail(result.data.detail);
+        mutateBoard((board) =>
+          replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
+        );
+      }
+    });
+  }
+
+  async function handleDeleteTimeEntry(entryId: string) {
+    if (!detail) return;
+    const result = await deleteTimeEntryAction({ boardId, cardId: detail.id, entryId });
+    if (!result.ok) { toast.error(result.message); return; }
+    toast.success(result.message ?? "Entrada eliminada.");
+    if (result.data) {
+      syncDetail(result.data.detail);
+      mutateBoard((board) =>
+        replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
+      );
+    }
+  }
+
+  async function loadHistory() {
+    if (!cardId || historyLoadedRef.current === cardId) return;
+    setHistoryLoading(true);
+    const result = await getCardHistoryAction(boardId, cardId);
+    setHistoryLoading(false);
+    if (result.ok && result.data) {
+      setHistory(result.data as CardHistoryItem[]);
+      historyLoadedRef.current = cardId;
+    }
+  }
 
   function syncDetail(nextDetail: CardDetailView) {
     setDetail(nextDetail);
@@ -121,8 +423,11 @@ export function CardDetailDialog({
     setDueDate(toDateInputValue(nextDetail.dueDate));
     setPriority(nextDetail.priority);
     setStatus(nextDetail.status);
-    setSelectedLabels(nextDetail.labels.map((label) => label.id));
-    setSelectedAssignees(nextDetail.assignees.map((assignee) => assignee.userId));
+    setSelectedLabels(nextDetail.labels.map((l) => l.id));
+    setSelectedAssignees(nextDetail.assignees.map((a) => a.userId));
+    setEstimatedMinutes(
+      nextDetail.estimatedMinutes != null ? String(nextDetail.estimatedMinutes) : "",
+    );
   }
 
   function resetState() {
@@ -133,66 +438,48 @@ export function CardDetailDialog({
     setAttachmentUrl("");
     setAttachmentUrlError("");
     setChecklistItemDrafts({});
+    setHistory([]);
+    historyLoadedRef.current = null;
+    setManualMinutes("");
+    setManualNote("");
+    setTimerActive(false);
+    setTimerStart(null);
     onActiveFieldChange?.(null);
   }
 
-  const refreshDetail = useCallback(async (currentCardId: string) => {
-    const result = await getCardDetailAction(boardId, currentCardId);
-
-    if (!result.ok || !result.data) {
-      toast.error(result.message);
-      return null;
-    }
-
-    return result.data;
-  }, [boardId]);
+  const refreshDetail = useCallback(
+    async (currentCardId: string) => {
+      const result = await getCardDetailAction(boardId, currentCardId);
+      if (!result.ok || !result.data) { toast.error(result.message); return null; }
+      return result.data;
+    },
+    [boardId],
+  );
 
   const hasUnsavedCardChanges = useMemo(() => {
-    if (!detail) {
-      return false;
-    }
-
+    if (!detail) return false;
+    const estMins = estimatedMinutes === "" ? null : parseInt(estimatedMinutes, 10) || null;
     return (
       title !== detail.title ||
       description !== (detail.description ?? "") ||
       dueDate !== toDateInputValue(detail.dueDate) ||
       priority !== detail.priority ||
       status !== detail.status ||
-      !haveSameValues(
-        selectedLabels,
-        detail.labels.map((label) => label.id),
-      ) ||
-      !haveSameValues(
-        selectedAssignees,
-        detail.assignees.map((assignee) => assignee.userId),
-      )
+      estMins !== detail.estimatedMinutes ||
+      !haveSameValues(selectedLabels, detail.labels.map((l) => l.id)) ||
+      !haveSameValues(selectedAssignees, detail.assignees.map((a) => a.userId))
     );
-  }, [
-    description,
-    detail,
-    dueDate,
-    priority,
-    selectedAssignees,
-    selectedLabels,
-    status,
-    title,
-  ]);
-  const activeViewers = useMemo(() => {
-    if (!detail) {
-      return [];
-    }
+  }, [description, detail, dueDate, estimatedMinutes, priority, selectedAssignees, selectedLabels, status, title]);
 
-    return presence.filter((entry) => entry.activeCardId === detail.id);
+  const activeViewers = useMemo(() => {
+    if (!detail) return [];
+    return presence.filter((e) => e.activeCardId === detail.id);
   }, [detail, presence]);
 
-  // Helper: viewers editing a specific field (excluding self — we don't show our own cursor)
   function getFieldEditors(field: string) {
-    return activeViewers.filter(
-      (v) => v.activeField === field,
-    );
+    return activeViewers.filter((v) => v.activeField === field);
   }
 
-  // Small badge showing who's editing a field
   function FieldEditorBadge({ field }: { field: string }) {
     const editors = getFieldEditors(field);
     if (!editors.length) return null;
@@ -205,99 +492,51 @@ export function CardDetailDialog({
   }
 
   useEffect(() => {
-    if (!open || !cardId) {
-      return;
-    }
-
+    if (!open || !cardId) return;
     let cancelled = false;
-
     void (async () => {
       setLoading(true);
       const nextDetail = await refreshDetail(cardId);
-
-      if (cancelled) {
-        return;
-      }
-
+      if (cancelled) return;
       setLoading(false);
-
-      if (nextDetail) {
-        syncDetail(nextDetail);
-      }
+      if (nextDetail) syncDetail(nextDetail);
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [boardId, cardId, open, refreshDetail]);
 
   useEffect(() => {
-    if (!open || !cardId) {
-      remoteNoticeRef.current = null;
-      return;
-    }
-
+    if (!open || !cardId) { remoteNoticeRef.current = null; return; }
     if (!cardUpdatedAt) {
-      if (detail) {
-        toast.error("La tarjeta fue eliminada en otra sesion.");
-        onOpenChange(false);
-      }
-
+      if (detail) { toast.error("La tarjeta fue eliminada en otra sesión."); onOpenChange(false); }
       return;
     }
-
-    if (!detail || cardUpdatedAt === detail.updatedAt) {
-      remoteNoticeRef.current = null;
-      return;
-    }
-
+    if (!detail || cardUpdatedAt === detail.updatedAt) { remoteNoticeRef.current = null; return; }
     if (hasUnsavedCardChanges || isPending) {
       if (remoteNoticeRef.current !== cardUpdatedAt) {
         remoteNoticeRef.current = cardUpdatedAt;
-        toast.error("La tarjeta cambio en otra sesion. Guarda tus cambios y volve a abrirla.");
+        toast.error("La tarjeta cambió en otra sesión. Guardá tus cambios y volvé a abrirla.");
       }
-
       return;
     }
-
     let cancelled = false;
-
     void (async () => {
       const nextDetail = await refreshDetail(cardId);
-
-      if (cancelled || !nextDetail) {
-        return;
-      }
-
+      if (cancelled || !nextDetail) return;
       syncDetail(nextDetail);
       remoteNoticeRef.current = null;
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    cardId,
-    cardUpdatedAt,
-    detail,
-    hasUnsavedCardChanges,
-    isPending,
-    onOpenChange,
-    open,
-    refreshDetail,
-  ]);
+    return () => { cancelled = true; };
+  }, [cardId, cardUpdatedAt, detail, hasUnsavedCardChanges, isPending, onOpenChange, open, refreshDetail]);
 
   function toggleSelection(values: string[], value: string) {
     return values.includes(value)
-      ? values.filter((current) => current !== value)
+      ? values.filter((c) => c !== value)
       : [...values, value];
   }
 
   function handleSaveCard() {
-    if (!detail) {
-      return;
-    }
-
+    if (!detail) return;
+    const estMins = estimatedMinutes === "" ? null : parseInt(estimatedMinutes, 10) || null;
     startTransition(async () => {
       const result = await updateCardAction({
         boardId,
@@ -309,48 +548,27 @@ export function CardDetailDialog({
         status,
         labelIds: selectedLabels,
         assigneeIds: selectedAssignees,
+        estimatedMinutes: estMins,
       });
-
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-
+      if (!result.ok) { toast.error(result.message); return; }
       toast.success(result.message ?? "Tarjeta actualizada.");
-      if (!result.data) {
-        toast.error("Guardamos los cambios, pero no pudimos refrescar la tarjeta.");
-        return;
-      }
-
-      const payload = result.data;
-      syncDetail(payload.detail);
+      if (!result.data) return;
+      syncDetail(result.data.detail);
       mutateBoard((board) =>
-        replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+        replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
       );
     });
   }
 
   function handleDeleteCard() {
-    if (!detail) {
-      return;
-    }
-
+    if (!detail) return;
     startTransition(async () => {
-      const result = await deleteCardAction({
-        boardId,
-        cardId: detail.id,
-      });
-
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-
+      const result = await deleteCardAction({ boardId, cardId: detail.id });
+      if (!result.ok) { toast.error(result.message); return; }
       toast.success(result.message ?? "Tarjeta eliminada.");
       if (result.data) {
-        const payload = result.data;
         mutateBoard((board) =>
-          removeCardFromBoard(board, payload.cardId, payload.boardUpdatedAt),
+          removeCardFromBoard(board, result.data!.cardId, result.data!.boardUpdatedAt),
         );
       }
       onOpenChange(false);
@@ -358,131 +576,56 @@ export function CardDetailDialog({
   }
 
   async function handleAddComment() {
-    if (!detail || !comment.trim()) {
-      return;
-    }
-
-    const result = await addCommentAction({
-      boardId,
-      cardId: detail.id,
-      body: comment,
-    });
-
-    if (!result.ok) {
-      toast.error(result.message);
-      return;
-    }
-
+    if (!detail || !comment.trim()) return;
+    const result = await addCommentAction({ boardId, cardId: detail.id, body: comment });
+    if (!result.ok) { toast.error(result.message); return; }
     setComment("");
     toast.success(result.message ?? "Comentario agregado.");
-    if (!result.data) {
-      toast.error("El comentario se guardó, pero no pudimos refrescar la tarjeta.");
-      return;
-    }
-
-    const payload = result.data;
-    syncDetail(payload.detail);
+    if (!result.data) return;
+    syncDetail(result.data.detail);
     mutateBoard((board) =>
-      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+      replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
     );
   }
 
   async function handleAddChecklist() {
-    if (!detail || !checklistTitle.trim()) {
-      return;
-    }
-
-    const result = await addChecklistAction({
-      boardId,
-      cardId: detail.id,
-      title: checklistTitle,
-    });
-
-    if (!result.ok) {
-      toast.error(result.message);
-      return;
-    }
-
+    if (!detail || !checklistTitle.trim()) return;
+    const result = await addChecklistAction({ boardId, cardId: detail.id, title: checklistTitle });
+    if (!result.ok) { toast.error(result.message); return; }
     setChecklistTitle("");
     toast.success(result.message ?? "Checklist agregado.");
-    if (!result.data) {
-      toast.error("El checklist se creó, pero no pudimos refrescar la tarjeta.");
-      return;
-    }
-
-    const payload = result.data;
-    syncDetail(payload.detail);
+    if (!result.data) return;
+    syncDetail(result.data.detail);
     mutateBoard((board) =>
-      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+      replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
     );
   }
 
   async function handleAddChecklistItem(checklistId: string) {
-    const title = checklistItemDrafts[checklistId]?.trim();
-
-    if (!title || !detail) {
-      return;
-    }
-
-    const result = await addChecklistItemAction({
-      boardId,
-      checklistId,
-      title,
-    });
-
-    if (!result.ok) {
-      toast.error(result.message);
-      return;
-    }
-
-    setChecklistItemDrafts((current) => ({
-      ...current,
-      [checklistId]: "",
-    }));
-    if (!result.data) {
-      toast.error("El item se creó, pero no pudimos refrescar la tarjeta.");
-      return;
-    }
-
-    const payload = result.data;
-    syncDetail(payload.detail);
+    const t = checklistItemDrafts[checklistId]?.trim();
+    if (!t || !detail) return;
+    const result = await addChecklistItemAction({ boardId, checklistId, title: t });
+    if (!result.ok) { toast.error(result.message); return; }
+    setChecklistItemDrafts((c) => ({ ...c, [checklistId]: "" }));
+    if (!result.data) return;
+    syncDetail(result.data.detail);
     mutateBoard((board) =>
-      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+      replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
     );
   }
 
   async function handleToggleChecklist(itemId: string, isCompleted: boolean) {
-    const result = await toggleChecklistItemAction({
-      boardId,
-      itemId,
-      isCompleted,
-    });
-
-    if (!result.ok) {
-      toast.error(result.message);
-      return;
-    }
-
-    if (!result.data) {
-      toast.error("Actualizamos el checklist, pero no pudimos refrescar la tarjeta.");
-      return;
-    }
-
-    const payload = result.data;
-    syncDetail(payload.detail);
+    const result = await toggleChecklistItemAction({ boardId, itemId, isCompleted });
+    if (!result.ok) { toast.error(result.message); return; }
+    if (!result.data) return;
+    syncDetail(result.data.detail);
     mutateBoard((board) =>
-      replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+      replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
     );
   }
 
-  const [isAddingAttachment, startAttachmentTransition] = useTransition();
-
   async function handleAddAttachment() {
-    if (!detail || !attachmentName.trim() || !attachmentUrl.trim()) {
-      return;
-    }
-
-    // Client-side URL validation before hitting the server
+    if (!detail || !attachmentName.trim() || !attachmentUrl.trim()) return;
     try {
       new URL(attachmentUrl.trim());
       setAttachmentUrlError("");
@@ -490,7 +633,6 @@ export function CardDetailDialog({
       setAttachmentUrlError("Ingresá una URL válida (debe incluir https://).");
       return;
     }
-
     startAttachmentTransition(async () => {
       const result = await createAttachmentAction({
         boardId,
@@ -498,42 +640,32 @@ export function CardDetailDialog({
         name: attachmentName,
         url: attachmentUrl,
       });
-
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-
+      if (!result.ok) { toast.error(result.message); return; }
       setAttachmentName("");
       setAttachmentUrl("");
       setAttachmentUrlError("");
       toast.success(result.message ?? "Adjunto agregado.");
-      if (!result.data) {
-        toast.error("El adjunto se agregó, pero no pudimos refrescar la tarjeta.");
-        return;
-      }
-
-      const payload = result.data;
-      syncDetail(payload.detail);
+      if (!result.data) return;
+      syncDetail(result.data.detail);
       mutateBoard((board) =>
-        replaceCardInBoard(board, payload.detail, payload.boardUpdatedAt),
+        replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
       );
     });
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          resetState();
-        }
-
+        if (!nextOpen) resetState();
         onOpenChange(nextOpen);
       }}
     >
       <DialogContent className="max-h-[100dvh] w-[min(96vw,72rem)] max-w-6xl overflow-hidden p-0 sm:max-h-[92vh] sm:w-[min(94vw,72rem)]">
         <div className="grid h-full min-h-0 grid-cols-1 lg:min-h-[72vh] lg:grid-cols-[1.05fr_0.95fr]">
+
+          {/* ── Left panel ─────────────────────────────────────────────────── */}
           <div className="border-b border-border/60 p-4 sm:p-6 lg:border-r lg:border-b-0">
             <DialogHeader>
               <DialogTitle className="text-xl sm:text-2xl">
@@ -556,31 +688,40 @@ export function CardDetailDialog({
                   <TabsTrigger value="overview">Resumen</TabsTrigger>
                   <TabsTrigger value="checklists">Checklist</TabsTrigger>
                   <TabsTrigger value="activity">Actividad</TabsTrigger>
+                  <TabsTrigger value="history" onClick={loadHistory}>
+                    <History className="mr-1 size-3.5" />
+                    Historial
+                  </TabsTrigger>
+                  <TabsTrigger value="time">
+                    <Timer className="mr-1 size-3.5" />
+                    Tiempo
+                  </TabsTrigger>
                 </TabsList>
 
                 <ScrollArea className="mt-4 h-[min(52vh,32rem)] pr-2 sm:h-[58vh] sm:pr-4">
+
+                  {/* ── Overview ──────────────────────────────────────────── */}
                   <TabsContent value="overview" className="space-y-5 pr-2">
                     <div className="space-y-2">
                       <Label className="flex items-center">
-                        Título
-                        <FieldEditorBadge field="title" />
+                        Título <FieldEditorBadge field="title" />
                       </Label>
                       <Input
                         value={title}
-                        onChange={(event) => setTitle(event.target.value)}
+                        onChange={(e) => setTitle(e.target.value)}
                         disabled={!canEdit}
                         onFocus={() => onActiveFieldChange?.("title")}
                         onBlur={() => onActiveFieldChange?.(null)}
                       />
                     </div>
+
                     <div className="space-y-2">
                       <Label className="flex items-center">
-                        Descripción
-                        <FieldEditorBadge field="description" />
+                        Descripción <FieldEditorBadge field="description" />
                       </Label>
                       <Textarea
                         value={description}
-                        onChange={(event) => setDescription(event.target.value)}
+                        onChange={(e) => setDescription(e.target.value)}
                         disabled={!canEdit}
                         onFocus={() => onActiveFieldChange?.("description")}
                         onBlur={() => onActiveFieldChange?.(null)}
@@ -590,56 +731,60 @@ export function CardDetailDialog({
                     <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
                         <Label>Estado</Label>
-                        <Select
-                          value={status}
-                          onValueChange={setStatus}
-                          disabled={!canEdit}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
+                        <Select value={status} onValueChange={setStatus} disabled={!canEdit}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {CARD_STATUSES.map((item) => (
-                              <SelectItem key={item} value={item}>
-                                {getStatusLabel(item)}
-                              </SelectItem>
+                            {CARD_STATUSES.map((s) => (
+                              <SelectItem key={s} value={s}>{getStatusLabel(s)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label>Prioridad</Label>
-                        <Select
-                          value={priority}
-                          onValueChange={setPriority}
-                          disabled={!canEdit}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
+                        <Select value={priority} onValueChange={setPriority} disabled={!canEdit}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {CARD_PRIORITIES.map((item) => (
-                              <SelectItem key={item} value={item}>
-                                {getPriorityLabel(item)}
-                              </SelectItem>
+                            {CARD_PRIORITIES.map((p) => (
+                              <SelectItem key={p} value={p}>{getPriorityLabel(p)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label className="flex items-center">
-                          Fecha límite
-                          <FieldEditorBadge field="dueDate" />
+                          Fecha límite <FieldEditorBadge field="dueDate" />
                         </Label>
                         <Input
                           type="date"
                           value={dueDate}
-                          onChange={(event) => setDueDate(event.target.value)}
+                          onChange={(e) => setDueDate(e.target.value)}
                           disabled={!canEdit}
                           onFocus={() => onActiveFieldChange?.("dueDate")}
                           onBlur={() => onActiveFieldChange?.(null)}
                         />
                       </div>
+                    </div>
+
+                    {/* Tiempo estimado */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Clock className="size-3.5 text-muted-foreground" />
+                        Tiempo estimado (minutos)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Ej: 120 → 2h"
+                        value={estimatedMinutes}
+                        onChange={(e) => setEstimatedMinutes(e.target.value)}
+                        disabled={!canEdit}
+                      />
+                      {estimatedMinutes && !isNaN(parseInt(estimatedMinutes)) && parseInt(estimatedMinutes) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          = {formatMinutes(parseInt(estimatedMinutes))}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -651,9 +796,7 @@ export function CardDetailDialog({
                             type="button"
                             disabled={!canEdit}
                             onClick={() =>
-                              setSelectedLabels((current) =>
-                                toggleSelection(current, label.id),
-                              )
+                              setSelectedLabels((c) => toggleSelection(c, label.id))
                             }
                             className={`rounded-[20px] border border-border px-3 py-2 text-left text-sm transition ${
                               selectedLabels.includes(label.id)
@@ -679,16 +822,12 @@ export function CardDetailDialog({
                               checked={selectedAssignees.includes(member.userId)}
                               disabled={!canEdit}
                               onCheckedChange={() =>
-                                setSelectedAssignees((current) =>
-                                  toggleSelection(current, member.userId),
-                                )
+                                setSelectedAssignees((c) => toggleSelection(c, member.userId))
                               }
                             />
                             <div>
                               <p className="font-medium">{member.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {member.email}
-                              </p>
+                              <p className="text-xs text-muted-foreground">{member.email}</p>
                             </div>
                           </label>
                         ))}
@@ -714,56 +853,36 @@ export function CardDetailDialog({
                     </div>
                   </TabsContent>
 
+                  {/* ── Checklists ─────────────────────────────────────── */}
                   <TabsContent value="checklists" className="space-y-5 pr-2">
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
                         value={checklistTitle}
-                        onChange={(event) => setChecklistTitle(event.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddChecklist();
-                          }
-                        }}
+                        onChange={(e) => setChecklistTitle(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddChecklist(); } }}
                         placeholder="Nuevo checklist"
                         disabled={!canEdit}
                       />
-                      <Button
-                        type="button"
-                        onClick={handleAddChecklist}
-                        disabled={!canEdit || !checklistTitle.trim()}
-                      >
+                      <Button type="button" onClick={handleAddChecklist} disabled={!canEdit || !checklistTitle.trim()}>
                         <SquareCheckBig className="size-4" />
                         Agregar
                       </Button>
                     </div>
-
                     {detail.checklists.map((checklist) => (
-                      <div
-                        key={checklist.id}
-                        className="rounded-[28px] border border-border bg-background/60 p-4"
-                      >
+                      <div key={checklist.id} className="rounded-[28px] border border-border bg-background/60 p-4">
                         <div className="mb-3">
-                          <h4 className="font-display text-lg font-semibold">
-                            {checklist.title}
-                          </h4>
+                          <h4 className="font-display text-lg font-semibold">{checklist.title}</h4>
                           <p className="text-sm text-muted-foreground">
-                            {checklist.items.filter((item) => item.isCompleted).length}/
-                            {checklist.items.length} completados
+                            {checklist.items.filter((i) => i.isCompleted).length}/{checklist.items.length} completados
                           </p>
                         </div>
                         <div className="space-y-3">
                           {checklist.items.map((item) => (
-                            <label
-                              key={item.id}
-                              className="flex items-start gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3"
-                            >
+                            <label key={item.id} className="flex items-start gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3">
                               <Checkbox
                                 checked={item.isCompleted}
                                 disabled={!canEdit}
-                                onCheckedChange={(checked) =>
-                                  handleToggleChecklist(item.id, Boolean(checked))
-                                }
+                                onCheckedChange={(checked) => handleToggleChecklist(item.id, Boolean(checked))}
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium">{item.title}</p>
@@ -776,22 +895,11 @@ export function CardDetailDialog({
                             </label>
                           ))}
                         </div>
-
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                           <Input
                             value={checklistItemDrafts[checklist.id] ?? ""}
-                            onChange={(event) =>
-                              setChecklistItemDrafts((current) => ({
-                                ...current,
-                                [checklist.id]: event.target.value,
-                              }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleAddChecklistItem(checklist.id);
-                              }
-                            }}
+                            onChange={(e) => setChecklistItemDrafts((c) => ({ ...c, [checklist.id]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddChecklistItem(checklist.id); } }}
                             placeholder="Nuevo item"
                             disabled={!canEdit}
                           />
@@ -808,7 +916,9 @@ export function CardDetailDialog({
                     ))}
                   </TabsContent>
 
+                  {/* ── Activity (adjuntos + comentarios con @menciones) ── */}
                   <TabsContent value="activity" className="space-y-5 pr-2">
+                    {/* Adjuntos */}
                     <div className="rounded-[28px] border border-border bg-background/60 p-4">
                       <div className="mb-3 flex items-center gap-2">
                         <Paperclip className="size-4 text-primary" />
@@ -819,22 +929,19 @@ export function CardDetailDialog({
                           </span>
                         )}
                       </div>
-
                       {detail.attachments.length > 0 ? (
                         <div className="mb-3 space-y-2">
-                          {detail.attachments.map((attachment) => (
+                          {detail.attachments.map((a) => (
                             <a
-                              key={attachment.id}
-                              href={attachment.url}
+                              key={a.id}
+                              href={a.url}
                               target="_blank"
                               rel="noreferrer"
                               className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3 text-sm transition hover:bg-card hover:border-primary/20"
                             >
                               <div className="min-w-0">
-                                <p className="truncate font-medium">{attachment.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {attachment.url}
-                                </p>
+                                <p className="truncate font-medium">{a.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{a.url}</p>
                               </div>
                               <svg className="size-3.5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -843,44 +950,26 @@ export function CardDetailDialog({
                           ))}
                         </div>
                       ) : (
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Todavía no hay adjuntos en esta tarjeta.
-                        </p>
+                        <p className="mb-3 text-sm text-muted-foreground">Todavía no hay adjuntos en esta tarjeta.</p>
                       )}
-
                       {canEdit ? (
                         <div className="space-y-2 border-t border-border/60 pt-3">
                           <div className="grid gap-2 sm:grid-cols-2">
                             <Input
                               value={attachmentName}
                               onChange={(e) => setAttachmentName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleAddAttachment();
-                                }
-                              }}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddAttachment(); } }}
                               placeholder="Nombre del adjunto"
                             />
                             <div className="space-y-1">
                               <Input
                                 value={attachmentUrl}
-                                onChange={(e) => {
-                                  setAttachmentUrl(e.target.value);
-                                  if (attachmentUrlError) setAttachmentUrlError("");
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleAddAttachment();
-                                  }
-                                }}
+                                onChange={(e) => { setAttachmentUrl(e.target.value); if (attachmentUrlError) setAttachmentUrlError(""); }}
+                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddAttachment(); } }}
                                 placeholder="https://..."
                                 className={attachmentUrlError ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
                               />
-                              {attachmentUrlError && (
-                                <p className="text-xs text-destructive">{attachmentUrlError}</p>
-                              )}
+                              {attachmentUrlError && <p className="text-xs text-destructive">{attachmentUrlError}</p>}
                             </div>
                           </div>
                           <Button
@@ -890,63 +979,264 @@ export function CardDetailDialog({
                             disabled={isAddingAttachment || !attachmentName.trim() || !attachmentUrl.trim()}
                           >
                             {isAddingAttachment ? (
-                              <>
-                                <LoaderCircle className="size-4 animate-spin" />
-                                Agregando...
-                              </>
+                              <><LoaderCircle className="size-4 animate-spin" /> Agregando...</>
                             ) : (
-                              <>
-                                <Paperclip className="size-4" />
-                                Agregar adjunto
-                              </>
+                              <><Paperclip className="size-4" /> Agregar adjunto</>
                             )}
                           </Button>
                         </div>
                       ) : null}
                     </div>
 
+                    {/* Comentarios con @menciones */}
                     <div className="rounded-[28px] border border-border bg-background/60 p-4">
                       <h4 className="font-display text-lg font-semibold">Comentarios</h4>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Escribí <span className="font-medium text-foreground">@nombre</span> para mencionar a un miembro del tablero.
+                      </p>
                       <div className="mt-3 space-y-3">
                         {detail.comments.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className="rounded-2xl border border-border bg-card/70 px-4 py-3"
-                          >
+                          <div key={entry.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="font-medium">{entry.author.name}</p>
+                              <div className="flex items-center gap-2">
+                                <UserAvatar name={entry.author.name} src={entry.author.avatarUrl} className="size-7" />
+                                <p className="font-medium">{entry.author.name}</p>
+                              </div>
                               <span className="text-xs text-muted-foreground">
                                 {formatRelativeDistance(entry.createdAt)}
                               </span>
                             </div>
-                            <p className="mt-2 text-sm text-muted-foreground">{entry.body}</p>
+                            <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                              {entry.body.split(/(@[\w\u00C0-\u024F]+)/g).map((part, i) =>
+                                part.startsWith("@") ? (
+                                  <span key={i} className="rounded px-0.5 font-medium text-primary">{part}</span>
+                                ) : (
+                                  part
+                                ),
+                              )}
+                            </p>
                           </div>
                         ))}
                       </div>
                       {canEdit ? (
                         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                          <Textarea
+                          <MentionTextarea
                             value={comment}
-                            onChange={(event) => setComment(event.target.value)}
-                            placeholder="Agregar comentario"
+                            onChange={setComment}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                e.preventDefault();
+                                handleAddComment();
+                              }
+                            }}
+                            placeholder="Agregar comentario… (Ctrl+Enter para enviar)"
+                            members={members}
                             className="min-h-20"
                           />
-                          <Button
-                            type="button"
-                            onClick={handleAddComment}
-                            disabled={!comment.trim()}
-                          >
+                          <Button type="button" onClick={handleAddComment} disabled={!comment.trim()}>
                             <Send className="size-4" />
                           </Button>
                         </div>
                       ) : null}
                     </div>
                   </TabsContent>
+
+                  {/* ── Historial ──────────────────────────────────────── */}
+                  <TabsContent value="history" className="space-y-3 pr-2">
+                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <History className="size-4 text-primary" />
+                        <h4 className="font-display text-lg font-semibold">Historial de cambios</h4>
+                      </div>
+                      {historyLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <LoaderCircle className="size-6 animate-spin text-primary" />
+                        </div>
+                      ) : history.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No hay actividad registrada para esta tarjeta todavía.
+                        </p>
+                      ) : (
+                        <ol className="relative space-y-0 border-l border-border/60 pl-5">
+                          {history.map((item) => (
+                            <li key={item.id} className="pb-4 last:pb-0">
+                              <div className="absolute -left-[5px] mt-1.5 size-2.5 rounded-full border border-border bg-background" />
+                              <div className="flex items-start gap-3">
+                                <UserAvatar
+                                  name={item.user.name}
+                                  src={item.user.avatarUrl}
+                                  className="size-7 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <p className="text-sm">
+                                    <span className="font-medium">{item.user.name}</span>{" "}
+                                    <span className="text-muted-foreground">{item.summary}</span>
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatRelativeDistance(item.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* ── Tiempo ────────────────────────────────────────── */}
+                  <TabsContent value="time" className="space-y-4 pr-2">
+                    {/* Resumen */}
+                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Clock className="size-4 text-primary" />
+                        <h4 className="font-display text-lg font-semibold">Resumen</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center">
+                          <p className="text-xs text-muted-foreground">Registrado</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums">
+                            {formatMinutes(detail.trackedMinutes)}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center">
+                          <p className="text-xs text-muted-foreground">Estimado</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums">
+                            {detail.estimatedMinutes ? formatMinutes(detail.estimatedMinutes) : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      {detail.estimatedMinutes ? (
+                        <div className="mt-3">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>Progreso</span>
+                            <span>{timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
+                                  ? "bg-destructive"
+                                  : "bg-primary"
+                              }`}
+                              style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Timer */}
+                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                      <h4 className="mb-3 font-semibold">Timer</h4>
+                      <div className="flex items-center gap-4">
+                        <span className={`font-mono text-3xl tabular-nums ${timerActive ? "text-primary" : "text-muted-foreground"}`}>
+                          {timerDisplay}
+                        </span>
+                        {timerActive ? (
+                          <Button variant="destructive" size="sm" onClick={handleStopTimer} disabled={isLoggingTime}>
+                            <Square className="size-4" />
+                            Detener y guardar
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" size="sm" onClick={handleStartTimer} disabled={!canEdit || isLoggingTime}>
+                            <Play className="size-4" />
+                            Iniciar timer
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Registro manual */}
+                    {canEdit ? (
+                      <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                        <h4 className="mb-3 font-semibold">Registrar manualmente</h4>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={1440}
+                            placeholder="Minutos (ej: 90)"
+                            value={manualMinutes}
+                            onChange={(e) => setManualMinutes(e.target.value)}
+                            className="sm:w-36"
+                          />
+                          <Input
+                            placeholder="Nota opcional"
+                            value={manualNote}
+                            onChange={(e) => setManualNote(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleLogManualTime(); } }}
+                          />
+                          <Button type="button" onClick={handleLogManualTime} disabled={isLoggingTime || !manualMinutes}>
+                            {isLoggingTime
+                              ? <LoaderCircle className="size-4 animate-spin" />
+                              : <Clock className="size-4" />}
+                            Registrar
+                          </Button>
+                        </div>
+                        {manualMinutes && !isNaN(parseInt(manualMinutes)) && parseInt(manualMinutes) > 0 && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            = {formatMinutes(parseInt(manualMinutes))}
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {/* Log de entradas */}
+                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                      <h4 className="mb-3 font-semibold">
+                        Entradas registradas
+                        {detail.timeEntries.length > 0 && (
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">
+                            ({detail.timeEntries.length})
+                          </span>
+                        )}
+                      </h4>
+                      {detail.timeEntries.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          Todavía no hay tiempo registrado en esta tarjeta.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {detail.timeEntries.map((entry) => (
+                            <div
+                              key={entry.id}
+                              className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-2.5 text-sm"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <UserAvatar name={entry.user.name} src={entry.user.avatarUrl} className="size-7 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-medium tabular-nums">{formatMinutes(entry.minutes)}</p>
+                                  {entry.note && (
+                                    <p className="truncate text-xs text-muted-foreground">{entry.note}</p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground">
+                                    {entry.user.name} · {formatRelativeDistance(entry.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTimeEntry(entry.id)}
+                                  className="shrink-0 rounded-lg p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  <X className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+
                 </ScrollArea>
               </Tabs>
             ) : null}
           </div>
 
+          {/* ── Right panel ────────────────────────────────────────────────── */}
           <aside className="bg-card/70 p-4 sm:p-6">
             {detail ? (
               <div className="space-y-5">
@@ -965,10 +1255,31 @@ export function CardDetailDialog({
                     </div>
                     <div>
                       <p className="text-muted-foreground">Última actualización</p>
-                      <p className="font-medium">
-                        {formatRelativeDistance(detail.updatedAt)}
-                      </p>
+                      <p className="font-medium">{formatRelativeDistance(detail.updatedAt)}</p>
                     </div>
+                    {(detail.estimatedMinutes || detail.trackedMinutes > 0) && (
+                      <div className="pt-2 border-t border-border/60">
+                        <p className="text-muted-foreground">Tiempo</p>
+                        <p className="font-medium tabular-nums">
+                          {formatMinutes(detail.trackedMinutes)}
+                          {detail.estimatedMinutes
+                            ? ` / ${formatMinutes(detail.estimatedMinutes)}`
+                            : ""}
+                        </p>
+                        {detail.estimatedMinutes ? (
+                          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className={`h-full rounded-full ${
+                                timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
+                                  ? "bg-destructive"
+                                  : "bg-primary"
+                              }`}
+                              style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -976,15 +1287,10 @@ export function CardDetailDialog({
                   <p className="text-sm font-semibold">Responsables</p>
                   <div className="mt-3 space-y-2">
                     {detail.assignees.length ? (
-                      detail.assignees.map((assignee) => (
-                        <div
-                          key={assignee.userId}
-                          className="rounded-2xl border border-border px-3 py-2 text-sm"
-                        >
-                          <p className="font-medium">{assignee.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {assignee.email}
-                          </p>
+                      detail.assignees.map((a) => (
+                        <div key={a.userId} className="rounded-2xl border border-border px-3 py-2 text-sm">
+                          <p className="font-medium">{a.name}</p>
+                          <p className="text-xs text-muted-foreground">{a.email}</p>
                         </div>
                       ))
                     ) : (
@@ -1004,11 +1310,7 @@ export function CardDetailDialog({
                           key={viewer.userId}
                           className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm"
                         >
-                          <UserAvatar
-                            name={viewer.name}
-                            src={viewer.avatarUrl}
-                            className="size-9"
-                          />
+                          <UserAvatar name={viewer.name} src={viewer.avatarUrl} className="size-9" />
                           <div className="min-w-0">
                             <p className="font-medium">{viewer.name}</p>
                             <p className="text-xs text-muted-foreground">

@@ -48,6 +48,9 @@ export type CardSummaryView = {
   checklistCompleted: number;
   checklistTotal: number;
   updatedAt: string;
+  // ── Ronda 1 ──
+  estimatedMinutes: number | null;
+  trackedMinutes: number;
 };
 
 export type BoardListView = {
@@ -238,6 +241,31 @@ export type AttachmentView = {
   createdAt: string;
 };
 
+// ── Ronda 1: tiempo tracking ──────────────────────────────────────────────────
+
+export type TimeEntryView = {
+  id: string;
+  minutes: number;
+  note: string | null;
+  createdAt: string;
+  user: UserSummary;
+};
+
+// ── Ronda 1: historial de tarjeta ─────────────────────────────────────────────
+
+export type CardHistoryItem = {
+  id: string;
+  type: string;
+  summary: string;
+  createdAt: string;
+  user: {
+    name: string;
+    avatarUrl: string | null;
+  };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type CardDetailView = {
   id: string;
   boardId: string;
@@ -255,6 +283,10 @@ export type CardDetailView = {
   comments: CardCommentView[];
   checklists: ChecklistView[];
   attachments: AttachmentView[];
+  // ── Ronda 1 ──
+  estimatedMinutes: number | null;
+  trackedMinutes: number;
+  timeEntries: TimeEntryView[];
 };
 
 export type ProfilePageData = {
