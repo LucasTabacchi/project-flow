@@ -130,7 +130,7 @@ function AppSidebarSkeleton({
 }) {
   return (
     <aside className="hidden xl:block xl:w-[260px] xl:shrink-0 2xl:w-[280px]">
-      <div className="sticky top-0 flex min-h-screen flex-col bg-sidebar-bg border-r border-sidebar-border px-4 py-5 2xl:px-5 2xl:py-6">
+      <div className="sticky top-0 flex h-screen min-h-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 2xl:px-5 2xl:py-6">
         <SidebarLogo />
         <UserCard user={user} />
         <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -161,7 +161,7 @@ function AppSidebarSkeleton({
 function AppSidebarComponent({ user }: AppSidebarProps) {
   return (
     <aside className="hidden xl:block xl:w-[260px] xl:shrink-0 2xl:w-[280px]">
-      <div className="sticky top-0 flex min-h-screen flex-col bg-sidebar-bg border-r border-sidebar-border px-4 py-5 2xl:px-5 2xl:py-6">
+      <div className="sticky top-0 flex h-screen min-h-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar-bg px-4 py-5 2xl:px-5 2xl:py-6">
         <SidebarLogo />
         <UserCard user={user} />
 

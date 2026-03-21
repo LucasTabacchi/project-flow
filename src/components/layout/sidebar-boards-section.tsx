@@ -15,7 +15,7 @@ export async function SidebarBoardsSection({
   const boards = await getUserSidebarBoards(userId);
 
   return (
-    <div className="mt-8 flex min-h-0 flex-1 flex-col">
+    <div className="mt-8 flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Tableros activos</p>
@@ -26,8 +26,8 @@ export async function SidebarBoardsSection({
         <Badge variant="secondary">{boards.length}</Badge>
       </div>
 
-      <ScrollArea className="mt-4 min-h-0 flex-1 pr-2">
-        <div className="space-y-3 pb-1">
+      <ScrollArea type="always" className="mt-4 min-h-0 flex-1">
+        <div className="space-y-3 pr-4 pb-1">
           {boards.length ? (
             boards.map((board) => {
               const theme = getBoardTheme(board.theme);
@@ -43,7 +43,9 @@ export async function SidebarBoardsSection({
                     className={`mt-1 size-3 rounded-full bg-gradient-to-r ${theme.gradientClass}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{board.name}</p>
+                    <p className="break-all font-medium leading-snug">
+                      {board.name}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {getRoleLabel(board.role)}
                     </p>

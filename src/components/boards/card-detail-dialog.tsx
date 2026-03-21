@@ -1440,9 +1440,12 @@ export function CardDetailDialog({
           </div>
 
           {/* ── Right panel ────────────────────────────────────────────────── */}
-          <aside className="min-h-0 bg-card/70 p-4 sm:overflow-hidden sm:p-6">
+          <aside className="min-h-0 overflow-hidden bg-card/70 p-4 sm:p-6">
             {detail ? (
-              <ScrollArea className="max-h-[42vh] pr-2 sm:max-h-[48vh] sm:pr-4 lg:h-full lg:max-h-none">
+              <ScrollArea
+                type="always"
+                className="max-h-[42vh] pr-2 sm:max-h-[48vh] sm:pr-4 lg:max-h-[calc(92vh-2rem)]"
+              >
                 <div className="space-y-5">
                   <div className="rounded-[28px] border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">

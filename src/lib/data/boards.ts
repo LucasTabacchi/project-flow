@@ -532,8 +532,7 @@ export const getUserSidebarBoards = cache(async (
         updatedAt: "desc",
       },
     },
-    take: 6,
-  });
+    });
 
   return boards.map((item) => ({
     id: item.board.id,
