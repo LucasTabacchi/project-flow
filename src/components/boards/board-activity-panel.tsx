@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import {
   Activity,
   ArrowRight,
+  Bot,
   CalendarClock,
   MessageSquare,
   MousePointerClick,
@@ -44,6 +45,7 @@ const ACTIVITY_ICONS: Record<string, React.ElementType> = {
   LIST_CREATED: Plus,
   LIST_RENAMED: MousePointerClick,
   MEMBER_JOINED: UserPlus,
+  AUTOMATION_APPLIED: Bot,
 };
 
 const ACTIVITY_COLORS: Record<string, string> = {
@@ -54,6 +56,7 @@ const ACTIVITY_COLORS: Record<string, string> = {
   CARD_COMMENT_ADDED: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   CARD_DUE_DATE_SET: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   CARD_DUE_DATE_REMOVED: "bg-secondary text-muted-foreground",
+  AUTOMATION_APPLIED: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
 };
 
 export function BoardActivityPanel({ boardId, open, onClose }: BoardActivityPanelProps) {

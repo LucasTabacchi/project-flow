@@ -15,6 +15,13 @@ export function normalizeEmailRecipients(recipients: string[]) {
   return [...new Set(recipients.map((value) => value.trim().toLowerCase()).filter(Boolean))];
 }
 
+type EnqueueBoardEmailDeliveryJobInput = {
+  boardId: string;
+  event: BoardEmailNotificationEvent;
+  data: Record<string, unknown>;
+  recipients: string[];
+};
+
 async function processBoardEmailNotificationJob(jobId: string) {
   const claim = await prisma.boardEmailNotificationJob.updateMany({
     where: {
@@ -130,6 +137,44 @@ export async function processPendingBoardEmailNotificationJobs(limit = 10) {
   };
 }
 
+export async function enqueueBoardEmailDeliveryJob(
+  input: EnqueueBoardEmailDeliveryJobInput,
+): Promise<void> {
+  const recipients = normalizeEmailRecipients(input.recipients);
+
+  if (!recipients.length) {
+    return;
+  }
+
+  const payload: BoardEmailNotificationPayload = {
+    event: input.event,
+    boardId: input.boardId,
+    timestamp: new Date().toISOString(),
+    data: input.data,
+  };
+
+  const job = await prisma.boardEmailNotificationJob.create({
+    data: {
+      boardId: input.boardId,
+      event: input.event,
+      payload: payload as Prisma.InputJsonValue,
+      recipients,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  void processPendingBoardEmailNotificationJobs(1).catch((error) => {
+    logError("board_email_notification.enqueue_processing_failed", {
+      boardId: input.boardId,
+      event: input.event,
+      jobId: job.id,
+      error,
+    });
+  });
+}
+
 export async function enqueueBoardEmailNotificationJob(
   boardId: string,
   event: BoardEmailNotificationEvent,
@@ -159,32 +204,11 @@ export async function enqueueBoardEmailNotificationJob(
       return;
     }
 
-    const payload: BoardEmailNotificationPayload = {
-      event,
+    await enqueueBoardEmailDeliveryJob({
       boardId,
-      timestamp: new Date().toISOString(),
+      event,
       data,
-    };
-
-    const job = await prisma.boardEmailNotificationJob.create({
-      data: {
-        boardId,
-        event,
-        payload: payload as Prisma.InputJsonValue,
-        recipients,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    void processPendingBoardEmailNotificationJobs(1).catch((error) => {
-      logError("board_email_notification.enqueue_processing_failed", {
-        boardId,
-        event,
-        jobId: job.id,
-        error,
-      });
+      recipients,
     });
   } catch (error) {
     logError("board_email_notification.enqueue_failed", {

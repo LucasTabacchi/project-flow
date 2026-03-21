@@ -1,4 +1,4 @@
-import type { RecurrenceFrequency } from "@prisma/client";
+import type { CardStatus, RecurrenceFrequency } from "@prisma/client";
 
 import type { ActionResult } from "@/lib/action-result";
 
@@ -74,4 +74,19 @@ export type BoardEmailNotificationSettingsView = {
   events: string[];
   updatedAt: string | null;
   recentJobs: BoardEmailNotificationJobView[];
+};
+
+export type BoardAutomationRuleView = {
+  id: string;
+  name: string;
+  active: boolean;
+  triggerType: "CARD_STATUS_CHANGED";
+  triggerStatus: CardStatus;
+  moveToListId: string | null;
+  moveToListName: string | null;
+  assignUserIds: string[];
+  dueInDays: number | null;
+  emailRecipients: string[];
+  createdAt: string;
+  updatedAt: string;
 };

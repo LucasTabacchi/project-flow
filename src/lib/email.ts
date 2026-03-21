@@ -258,12 +258,21 @@ function buildBoardEventSummary(payload: BoardEventPayload<BoardEvent>) {
         ],
       };
     case "card.status_changed":
+      const automationRuleName =
+        typeof payload.data.automationRuleName === "string"
+          ? payload.data.automationRuleName
+          : null;
+      const triggeredBy =
+        typeof payload.data.triggeredBy === "string" ? payload.data.triggeredBy : null;
+
       return {
         title: `Cambió el estado de "${String(payload.data.cardTitle ?? "Sin título")}"`,
         lines: [
           `Antes: ${String(payload.data.oldStatus ?? "Sin valor")}`,
           `Ahora: ${String(payload.data.newStatus ?? "Sin valor")}`,
           `Actualizado por: ${String(payload.data.updatedBy ?? "Desconocido")}`,
+          ...(automationRuleName ? [`Automatización: ${automationRuleName}`] : []),
+          ...(triggeredBy ? [`Disparada por: ${triggeredBy}`] : []),
         ],
       };
     case "card.assigned":

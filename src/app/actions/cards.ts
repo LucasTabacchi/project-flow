@@ -16,6 +16,7 @@ import {
   getCardDetail,
 } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
+import { runBoardStatusAutomations } from "@/lib/board-automations";
 import { canEditBoard } from "@/lib/permissions";
 import { enqueueBoardEmailNotificationJob } from "@/lib/board-email-notifications";
 import { createNotifications } from "@/lib/notifications";
@@ -349,14 +350,36 @@ export async function updateCardAction(
     },
   });
 
+  // Log de actividad — detectar qué cambió
+  const oldStatus = card.status ?? null;
+  const newStatus = parsed.data.status;
+  const oldDueDate = card.dueDate ? card.dueDate.toISOString().split("T")[0] : null;
+  const newDueDate = parsed.data.dueDate ?? null;
+
+  if (oldStatus !== newStatus) {
+    await runBoardStatusAutomations({
+      boardId: parsed.data.boardId,
+      cardId: parsed.data.cardId,
+      cardTitle: parsed.data.title,
+      oldStatus,
+      newStatus,
+      triggeredByUserId: user.id,
+      triggeredByName: user.name,
+    });
+  }
+
   const [detail, boardUpdatedAt] = await Promise.all([
     getCardDetail(parsed.data.boardId, parsed.data.cardId, user.id),
     touchBoard(parsed.data.boardId),
   ]);
   revalidatePath(`/boards/${parsed.data.boardId}`);
 
+  if (!detail) {
+    return failure("La tarjeta se actualizó pero no pudimos cargar la vista actualizada.");
+  }
+
   // Notificar a usuarios recién asignados (fire-and-forget)
-  if (newlyAssignedIds.length && detail) {
+  if (newlyAssignedIds.length) {
     createNotifications(
       newlyAssignedIds.map((assigneeId) => ({
         type: "CARD_ASSIGNED",
@@ -367,16 +390,6 @@ export async function updateCardAction(
       })),
     );
   }
-
-  if (!detail) {
-    return failure("La tarjeta se actualizó pero no pudimos cargar la vista actualizada.");
-  }
-
-  // Log de actividad — detectar qué cambió
-  const oldStatus = card.status ?? null;
-  const newStatus = parsed.data.status;
-  const oldDueDate = card.dueDate ? card.dueDate.toISOString().split("T")[0] : null;
-  const newDueDate = parsed.data.dueDate ?? null;
 
   if (oldStatus !== newStatus) {
     logActivity({
@@ -394,7 +407,7 @@ export async function updateCardAction(
       updatedBy: user.name,
     });
   }
-
+  
   if (newlyAssignedIds.length) {
     const newAssignees = detail.assignees
       .filter((assignee) => newlyAssignedIds.includes(assignee.userId))

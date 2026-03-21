@@ -4,6 +4,7 @@ import { memo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookTemplate,
+  Bot,
   CircleCheckBig,
   Layers3,
   LogOut,
@@ -24,6 +25,7 @@ import {
   updateBoardAction,
 } from "@/app/actions/boards";
 import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
+import { BoardAutomationsPanel } from "@/components/boards/board-automations-panel";
 import { BoardEmailNotificationsPanel } from "@/components/boards/board-email-notifications-panel";
 import { BoardExportMenu } from "@/components/boards/board-export-menu";
 import { RecurringCardsPanel } from "@/components/boards/recurring-cards-panel";
@@ -88,6 +90,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [automationsOpen, setAutomationsOpen] = useState(false);
   const [emailNotificationsOpen, setEmailNotificationsOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -289,6 +292,10 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
               ) : null}
               {board.permissions.canDelete ? (
                 <>
+                  <Button variant="secondary" className="shrink-0" onClick={() => setAutomationsOpen(true)}>
+                    <Bot className="size-4" />
+                    Automatizaciones
+                  </Button>
                   <Button variant="secondary" className="shrink-0" onClick={() => setEmailNotificationsOpen(true)}>
                     <Mail className="size-4" />
                     Emails
@@ -355,6 +362,10 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
             ) : null}
             {board.permissions.canDelete ? (
               <>
+                <Button variant="secondary" className="shrink-0" onClick={() => setAutomationsOpen(true)}>
+                  <Bot className="size-4" />
+                  Automatizaciones
+                </Button>
                 <Button variant="secondary" className="shrink-0" onClick={() => setEmailNotificationsOpen(true)}>
                   <Mail className="size-4" />
                   Emails
@@ -631,6 +642,24 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
         open={activityOpen}
         onClose={() => setActivityOpen(false)}
       />
+
+      <Dialog open={automationsOpen} onOpenChange={setAutomationsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Automatizaciones</DialogTitle>
+            <DialogDescription>
+              Reglas del tablero que reaccionan cuando una tarjeta cambia de estado.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh]">
+            <BoardAutomationsPanel
+              boardId={board.id}
+              lists={board.lists ?? []}
+              members={board.members}
+            />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={emailNotificationsOpen} onOpenChange={setEmailNotificationsOpen}>
         <DialogContent className="max-w-2xl">

@@ -67,6 +67,7 @@ enum ActivityType {
   MEMBER_JOINED
   // Nuevos para Ronda 1
   CARD_TIME_LOGGED
+  AUTOMATION_APPLIED
 }
 
 enum BoardEmailNotificationJobStatus {
@@ -74,6 +75,10 @@ enum BoardEmailNotificationJobStatus {
   PROCESSING
   SENT
   FAILED
+}
+
+enum BoardAutomationTriggerType {
+  CARD_STATUS_CHANGED
 }
 
 model User {
@@ -136,6 +141,7 @@ model Board {
   activities      BoardActivity[]
   emailNotificationSetting BoardEmailNotificationSetting?
   emailNotificationJobs BoardEmailNotificationJob[]
+  automationRules BoardAutomationRule[]
   recurringCards  RecurringCard[]
 
   @@index([ownerId])
@@ -186,6 +192,7 @@ model List {
   board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards     Card[]
   recurringCards RecurringCard[]
+  automationMoveTargets BoardAutomationRule[] @relation("AutomationMoveToList")
 
   @@index([boardId, position])
 }
@@ -453,6 +460,28 @@ model BoardEmailNotificationJob {
 
   @@index([status, createdAt])
   @@index([boardId, createdAt])
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Ronda 5: automatizaciones por reglas ────────────────────────────────────
+model BoardAutomationRule {
+  id              String                     @id @default(cuid())
+  boardId         String
+  name            String
+  active          Boolean                    @default(true)
+  triggerType     BoardAutomationTriggerType @default(CARD_STATUS_CHANGED)
+  triggerStatus   CardStatus
+  moveToListId    String?
+  assignUserIds   String[]                   @default([])
+  dueInDays       Int?
+  emailRecipients String[]                   @default([])
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  board           Board                      @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  moveToList      List?                      @relation("AutomationMoveToList", fields: [moveToListId], references: [id], onDelete: SetNull)
+
+  @@index([boardId, active])
+  @@index([boardId, triggerType, triggerStatus, active])
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
