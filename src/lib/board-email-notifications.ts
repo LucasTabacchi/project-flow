@@ -2,13 +2,13 @@ import "server-only";
 
 import { BoardEmailNotificationJobStatus, Prisma } from "@prisma/client";
 
+import { BOARD_EVENTS, type BoardEvent, type BoardEventPayload } from "@/lib/board-events";
 import { prisma } from "@/lib/db";
 import { sendBoardEventNotificationEmail } from "@/lib/email";
 import { logError } from "@/lib/observability";
-import { WEBHOOK_EVENTS, type BoardEventPayload, type WebhookEvent } from "@/lib/webhook-events";
 
-export const BOARD_EMAIL_NOTIFICATION_EVENTS = WEBHOOK_EVENTS;
-export type BoardEmailNotificationEvent = WebhookEvent;
+export const BOARD_EMAIL_NOTIFICATION_EVENTS = BOARD_EVENTS;
+export type BoardEmailNotificationEvent = BoardEvent;
 export type BoardEmailNotificationPayload = BoardEventPayload<BoardEmailNotificationEvent>;
 
 export function normalizeEmailRecipients(recipients: string[]) {

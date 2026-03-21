@@ -1,4 +1,4 @@
-export const WEBHOOK_EVENTS = [
+export const BOARD_EVENTS = [
   "card.created",
   "card.moved",
   "card.status_changed",
@@ -8,9 +8,9 @@ export const WEBHOOK_EVENTS = [
   "member.joined",
 ] as const;
 
-export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+export type BoardEvent = (typeof BOARD_EVENTS)[number];
 
-export type BoardEventPayload<EventName extends string = WebhookEvent> = {
+export type BoardEventPayload<EventName extends string = BoardEvent> = {
   event: EventName;
   boardId: string;
   timestamp: string;

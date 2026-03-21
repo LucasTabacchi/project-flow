@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useTransition } from "react";
+import { memo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookTemplate,
@@ -14,7 +14,6 @@ import {
   Trash2,
   TriangleAlert,
   Activity,
-  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,7 +26,6 @@ import {
 import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
 import { BoardEmailNotificationsPanel } from "@/components/boards/board-email-notifications-panel";
 import { BoardExportMenu } from "@/components/boards/board-export-menu";
-import { WebhookPanel } from "@/components/boards/webhook-panel";
 import { RecurringCardsPanel } from "@/components/boards/recurring-cards-panel";
 import { saveAsBoardTemplateAction } from "@/app/actions/templates";
 import { InviteMemberDialog } from "@/components/boards/invite-member-dialog";
@@ -90,7 +88,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
-  const [webhooksOpen, setWebhooksOpen] = useState(false);
   const [emailNotificationsOpen, setEmailNotificationsOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -98,6 +95,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const [templateDesc, setTemplateDesc] = useState("");
   const [templatePublic, setTemplatePublic] = useState(false);
   const [templateIncludeCards, setTemplateIncludeCards] = useState(true);
+  const templateNameInputRef = useRef<HTMLInputElement | null>(null);
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [theme, setTheme] = useState(board.theme);
@@ -272,12 +270,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                   Configurar
                 </Button>
               ) : null}
-              {board.permissions.canDelete ? (
-                <Button variant="destructive" className="shrink-0" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="size-4" />
-                  Eliminar
-                </Button>
-              ) : null}
               {board.role !== "OWNER" ? (
                 <Button variant="secondary" className="shrink-0" onClick={() => setLeaveOpen(true)}>
                   <LogOut className="size-4" />
@@ -301,10 +293,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                     <Mail className="size-4" />
                     Emails
                   </Button>
-                  <Button variant="secondary" className="shrink-0" onClick={() => setWebhooksOpen(true)}>
-                    <Zap className="size-4" />
-                    Webhooks
-                  </Button>
                   <Button
                     variant="secondary"
                     className="shrink-0"
@@ -312,6 +300,10 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                   >
                     <BookTemplate className="size-4" />
                     Guardar plantilla
+                  </Button>
+                  <Button variant="destructive" className="shrink-0" onClick={() => setDeleteOpen(true)}>
+                    <Trash2 className="size-4" />
+                    Eliminar
                   </Button>
                 </>
               ) : null}
@@ -344,12 +336,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                 Configurar
               </Button>
             ) : null}
-            {board.permissions.canDelete ? (
-              <Button variant="destructive" className="shrink-0" onClick={() => setDeleteOpen(true)}>
-                <Trash2 className="size-4" />
-                Eliminar
-              </Button>
-            ) : null}
             {board.role !== "OWNER" ? (
               <Button variant="secondary" className="shrink-0" onClick={() => setLeaveOpen(true)}>
                 <LogOut className="size-4" />
@@ -373,10 +359,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                   <Mail className="size-4" />
                   Emails
                 </Button>
-                <Button variant="secondary" className="shrink-0" onClick={() => setWebhooksOpen(true)}>
-                  <Zap className="size-4" />
-                  Webhooks
-                </Button>
                 <Button
                   variant="secondary"
                   className="shrink-0"
@@ -384,6 +366,10 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                 >
                   <BookTemplate className="size-4" />
                   Guardar plantilla
+                </Button>
+                <Button variant="destructive" className="shrink-0" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="size-4" />
+                  Eliminar
                 </Button>
               </>
             ) : null}
@@ -646,21 +632,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
         onClose={() => setActivityOpen(false)}
       />
 
-      {/* Webhooks dialog */}
-      <Dialog open={webhooksOpen} onOpenChange={setWebhooksOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Webhooks salientes</DialogTitle>
-            <DialogDescription>
-              Recibí eventos del tablero en tiempo real en tus propios servicios.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[60vh]">
-            <WebhookPanel boardId={board.id} />
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={emailNotificationsOpen} onOpenChange={setEmailNotificationsOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -696,7 +667,22 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
 
       {/* Save as template dialog */}
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            requestAnimationFrame(() => {
+              const input = templateNameInputRef.current;
+              if (!input) {
+                return;
+              }
+
+              input.focus({ preventScroll: true });
+              const cursorPosition = input.value.length;
+              input.setSelectionRange(cursorPosition, cursorPosition);
+            });
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Guardar como plantilla</DialogTitle>
             <DialogDescription>
@@ -707,6 +693,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
             <div className="space-y-1.5">
               <Label>Nombre de la plantilla</Label>
               <Input
+                ref={templateNameInputRef}
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
                 placeholder={board.name}

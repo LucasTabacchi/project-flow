@@ -1,9 +1,9 @@
 import "server-only";
 
+import type { BoardEventPayload, BoardEvent } from "@/lib/board-events";
 import { logError, logWarn } from "@/lib/observability";
 import { formatFullDate, getRoleLabel } from "@/lib/utils";
 import type { BoardRole } from "@/types";
-import type { BoardEventPayload, WebhookEvent } from "@/lib/webhook-events";
 
 // Brevo (ex Sendinblue) — permite enviar desde un Gmail verificado
 // sin necesitar un dominio propio. Plan gratuito: 300 emails/día.
@@ -228,7 +228,7 @@ export async function sendBoardInvitationEmail(
   });
 }
 
-const BOARD_EVENT_LABELS: Record<WebhookEvent, string> = {
+const BOARD_EVENT_LABELS: Record<BoardEvent, string> = {
   "card.created": "Tarjeta creada",
   "card.moved": "Tarjeta movida",
   "card.status_changed": "Estado de tarjeta cambiado",
@@ -238,7 +238,7 @@ const BOARD_EVENT_LABELS: Record<WebhookEvent, string> = {
   "member.joined": "Miembro unido",
 };
 
-function buildBoardEventSummary(payload: BoardEventPayload<WebhookEvent>) {
+function buildBoardEventSummary(payload: BoardEventPayload<BoardEvent>) {
   switch (payload.event) {
     case "card.created":
       return {
@@ -306,7 +306,7 @@ function buildBoardEventSummary(payload: BoardEventPayload<WebhookEvent>) {
   }
 }
 
-function buildBoardEventNotificationText(payload: BoardEventPayload<WebhookEvent>) {
+function buildBoardEventNotificationText(payload: BoardEventPayload<BoardEvent>) {
   const summary = buildBoardEventSummary(payload);
   const boardUrl = buildBoardUrl(payload.boardId);
 
@@ -328,7 +328,7 @@ function buildBoardEventNotificationText(payload: BoardEventPayload<WebhookEvent
     .join("\n");
 }
 
-function buildBoardEventNotificationHtml(payload: BoardEventPayload<WebhookEvent>) {
+function buildBoardEventNotificationHtml(payload: BoardEventPayload<BoardEvent>) {
   const summary = buildBoardEventSummary(payload);
   const boardUrl = buildBoardUrl(payload.boardId);
 
@@ -381,7 +381,7 @@ function buildBoardEventNotificationHtml(payload: BoardEventPayload<WebhookEvent
 }
 
 export async function sendBoardEventNotificationEmail(
-  payload: BoardEventPayload<WebhookEvent>,
+  payload: BoardEventPayload<BoardEvent>,
   recipients: string[],
 ): Promise<EmailDeliveryResult> {
   if (recipients.length === 0) {

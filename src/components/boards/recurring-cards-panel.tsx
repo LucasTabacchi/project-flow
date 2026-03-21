@@ -289,11 +289,6 @@ export function RecurringCardsPanel({ boardId, lists, canEdit }: RecurringPanelP
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Las tarjetas se crean automáticamente vía{" "}
-        <code className="rounded bg-secondary px-1 py-0.5">/api/cron/recurring-cards</code>.
-        Configurá el cron job para que se ejecute diariamente.
-      </p>
     </div>
   );
 }

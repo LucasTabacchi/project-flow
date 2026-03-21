@@ -58,22 +58,6 @@ export type TemplateSummary = {
   isOwn: boolean;
 };
 
-export type WebhookView = {
-  id: string;
-  url: string;
-  events: string[];
-  active: boolean;
-  secret: string;
-  createdAt: string;
-  recentDeliveries: {
-    id: string;
-    event: string;
-    success: boolean;
-    statusCode: number | null;
-    createdAt: string;
-  }[];
-};
-
 export type BoardEmailNotificationJobView = {
   id: string;
   event: string;

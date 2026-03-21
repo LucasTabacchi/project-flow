@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { WEBHOOK_EVENTS } from "@/lib/webhook-events";
+import { BOARD_EVENTS } from "@/lib/board-events";
 import { cn } from "@/lib/utils";
 import type { BoardEmailNotificationSettingsView } from "@/types/action-contracts";
 
@@ -125,7 +125,7 @@ export function BoardEmailNotificationsPanel({ boardId }: { boardId: string }) {
           <div className="space-y-1">
             <p className="font-semibold">Notificaciones por email</p>
             <p className="text-sm text-muted-foreground">
-              Configurá destinatarios y eventos. Los cambios se encolan internamente en la base y se envían con Brevo sin pasar por un webhook público.
+              Configurá destinatarios y eventos. Los cambios se encolan internamente en la base y se envían con Brevo sin exponer endpoints públicos.
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function BoardEmailNotificationsPanel({ boardId }: { boardId: string }) {
           <div className="space-y-2">
             <Label>Eventos</Label>
             <div className="grid gap-2 sm:grid-cols-2">
-              {WEBHOOK_EVENTS.map((event) => (
+              {BOARD_EVENTS.map((event) => (
                 <label
                   key={event}
                   className="flex cursor-pointer items-center gap-2 rounded-2xl border border-border bg-card/70 px-3 py-3 text-sm"

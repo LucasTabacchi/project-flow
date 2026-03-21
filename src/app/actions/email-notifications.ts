@@ -6,9 +6,9 @@ import { z } from "zod";
 import { failure, fromZodError, success, type ActionResult } from "@/lib/action-result";
 import { normalizeEmailRecipients } from "@/lib/board-email-notifications";
 import { requireUser } from "@/lib/auth/session";
+import { BOARD_EVENTS } from "@/lib/board-events";
 import { getBoardMembership } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
-import { WEBHOOK_EVENTS } from "@/lib/webhook-events";
 import type { BoardEmailNotificationSettingsView } from "@/types/action-contracts";
 
 const entityIdSchema = z
@@ -24,8 +24,8 @@ const updateBoardEmailNotificationSettingsSchema = z.object({
     .array(z.string().trim().email("Ingresá un email válido."))
     .max(10, "Podés configurar hasta 10 destinatarios por tablero."),
   events: z
-    .array(z.enum(WEBHOOK_EVENTS))
-    .max(WEBHOOK_EVENTS.length),
+    .array(z.enum(BOARD_EVENTS))
+    .max(BOARD_EVENTS.length),
   active: z.boolean(),
 }).superRefine((value, ctx) => {
   if (value.active && value.recipients.length === 0) {
@@ -135,7 +135,7 @@ export async function getBoardEmailNotificationSettingsAction(
     settings: serializeSettings({
       active: setting?.active ?? false,
       recipients: setting?.recipients ?? [],
-      events: setting?.events ?? [...WEBHOOK_EVENTS],
+      events: setting?.events ?? [...BOARD_EVENTS],
       updatedAt: setting?.updatedAt ?? null,
       recentJobs,
     }),

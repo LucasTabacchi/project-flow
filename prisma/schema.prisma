@@ -134,7 +134,6 @@ model Board {
   labels          Label[]
   presences       BoardPresence[]
   activities      BoardActivity[]
-  webhooks        Webhook[]
   emailNotificationSetting BoardEmailNotificationSetting?
   emailNotificationJobs BoardEmailNotificationJob[]
   recurringCards  RecurringCard[]
@@ -421,38 +420,6 @@ model BoardTemplate {
 
   @@index([ownerId])
   @@index([isPublic])
-}
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Ronda 3: webhooks salientes ───────────────────────────────────────────────
-model Webhook {
-  id        String    @id @default(cuid())
-  boardId   String
-  url       String
-  secret    String    // HMAC-SHA256 signing secret
-  // Eventos suscritos: ["card.created","card.moved","card.status_changed","comment.added"]
-  events    String[]
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  deliveries WebhookDelivery[]
-
-  @@index([boardId, active])
-}
-
-model WebhookDelivery {
-  id          String   @id @default(cuid())
-  webhookId   String
-  event       String
-  payload     Json
-  statusCode  Int?
-  success     Boolean  @default(false)
-  attempt     Int      @default(1)
-  createdAt   DateTime @default(now())
-  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-
-  @@index([webhookId, createdAt])
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
