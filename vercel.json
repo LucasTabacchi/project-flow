@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/email-notification-jobs",
-      "schedule": "0 * * * *"
+      "schedule": "0 7 * * *"
     }
   ]
 }
