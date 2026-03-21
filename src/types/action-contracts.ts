@@ -68,10 +68,22 @@ export type BoardEmailNotificationJobView = {
   sentAt: string | null;
 };
 
+export type BoardEmailReminderSettingsView = {
+  active: boolean;
+  overdueEnabled: boolean;
+  upcomingEnabled: boolean;
+  upcomingDays: number;
+  inactiveEnabled: boolean;
+  inactiveDays: number;
+  blockedEnabled: boolean;
+  blockedDays: number;
+};
+
 export type BoardEmailNotificationSettingsView = {
   active: boolean;
   recipients: string[];
   events: string[];
+  reminders: BoardEmailReminderSettingsView;
   updatedAt: string | null;
   recentJobs: BoardEmailNotificationJobView[];
 };

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { processPendingBoardEmailNotificationJobs } from "@/lib/board-email-notifications";
+import {
+  enqueueBoardReminderNotificationJobs,
+  processPendingBoardEmailNotificationJobs,
+} from "@/lib/board-email-notifications";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -16,10 +19,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const reminderSummary = await enqueueBoardReminderNotificationJobs();
     const summary = await processPendingBoardEmailNotificationJobs(25);
 
     return NextResponse.json({
       ok: true,
+      reminders: reminderSummary,
       ...summary,
       timestamp: new Date().toISOString(),
     });

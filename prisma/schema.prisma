@@ -455,14 +455,22 @@ model BoardTemplate {
 
 // ── Ronda 4: notificaciones por email internas ──────────────────────────────
 model BoardEmailNotificationSetting {
-  id         String   @id @default(cuid())
-  boardId    String   @unique
-  recipients String[]
-  events     String[]
-  active     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  board      Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(cuid())
+  boardId                 String   @unique
+  recipients              String[]
+  events                  String[]
+  active                  Boolean  @default(false)
+  remindersActive         Boolean  @default(false)
+  overdueReminderEnabled  Boolean  @default(false)
+  upcomingReminderEnabled Boolean  @default(false)
+  upcomingReminderDays    Int      @default(3)
+  inactiveReminderEnabled Boolean  @default(false)
+  inactiveReminderDays    Int      @default(7)
+  blockedReminderEnabled  Boolean  @default(false)
+  blockedReminderDays     Int      @default(3)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  board                   Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
   @@index([boardId, active])
 }
@@ -476,6 +484,7 @@ model BoardEmailNotificationJob {
   status     BoardEmailNotificationJobStatus @default(PENDING)
   attempts   Int                             @default(0)
   lastError  String?
+  dedupeKey  String?                         @unique
   createdAt  DateTime                        @default(now())
   updatedAt  DateTime                        @updatedAt
   sentAt     DateTime?

@@ -1,9 +1,23 @@
 import "server-only";
 
 import type { BoardEventPayload, BoardEvent } from "@/lib/board-events";
+import {
+  BOARD_EMAIL_NOTIFICATION_EVENT_LABELS,
+  isBoardEvent,
+  type BoardEmailNotificationPayload,
+  type BoardEmailReminderCardSummary,
+  type BoardEmailReminderEvent,
+  type BoardEmailReminderPayloadData,
+} from "@/lib/board-email-events";
 import { logError, logWarn } from "@/lib/observability";
-import { formatFullDate, getRoleLabel } from "@/lib/utils";
-import type { BoardRole } from "@/types";
+import {
+  formatDueDate,
+  formatFullDate,
+  getPriorityLabel,
+  getRoleLabel,
+  getStatusLabel,
+} from "@/lib/utils";
+import type { BoardRole, CardPriority, CardStatus } from "@/types";
 
 // Brevo (ex Sendinblue) — permite enviar desde un Gmail verificado
 // sin necesitar un dominio propio. Plan gratuito: 300 emails/día.
@@ -228,16 +242,6 @@ export async function sendBoardInvitationEmail(
   });
 }
 
-const BOARD_EVENT_LABELS: Record<BoardEvent, string> = {
-  "card.created": "Tarjeta creada",
-  "card.moved": "Tarjeta movida",
-  "card.status_changed": "Estado de tarjeta cambiado",
-  "card.assigned": "Responsables asignados",
-  "comment.added": "Comentario agregado",
-  "list.created": "Lista creada",
-  "member.joined": "Miembro unido",
-};
-
 function buildBoardEventSummary(payload: BoardEventPayload<BoardEvent>) {
   switch (payload.event) {
     case "card.created":
@@ -315,13 +319,90 @@ function buildBoardEventSummary(payload: BoardEventPayload<BoardEvent>) {
   }
 }
 
+function buildReminderCardLine(card: BoardEmailReminderCardSummary) {
+  const details = [
+    `Lista: ${card.listName}`,
+    `Estado: ${getStatusLabel(card.status as CardStatus)}`,
+    `Prioridad: ${getPriorityLabel(card.priority as CardPriority)}`,
+    card.dueDate ? `Vence: ${formatDueDate(card.dueDate)}` : "Vence: Sin fecha",
+    card.assigneeNames.length
+      ? `Responsables: ${card.assigneeNames.join(", ")}`
+      : "Responsables: Sin asignar",
+  ];
+
+  if (card.overdueDays) {
+    details.push(`Vencida hace ${card.overdueDays} día(s)`);
+  }
+
+  if (typeof card.daysUntilDue === "number") {
+    details.push(`Vence en ${card.daysUntilDue} día(s)`);
+  }
+
+  if (card.lastActivityAt && card.inactiveDays) {
+    details.push(
+      `Última actividad: ${formatFullDate(card.lastActivityAt)} (${card.inactiveDays} día(s) sin cambios)`,
+    );
+  }
+
+  if (card.blockedSince && card.blockedDays) {
+    details.push(
+      `Bloqueada desde ${formatFullDate(card.blockedSince)} (${card.blockedDays} día(s))`,
+    );
+  }
+
+  if (card.blockedByTitles?.length) {
+    details.push(`Bloqueada por: ${card.blockedByTitles.join(", ")}`);
+  }
+
+  return details;
+}
+
+function buildReminderSummary(
+  payload: BoardEmailNotificationPayload<BoardEmailReminderEvent>,
+) {
+  const data = payload.data as BoardEmailReminderPayloadData;
+  const boardName = data.boardName || payload.boardId;
+  const cardCount = data.cards.length;
+
+  switch (payload.event) {
+    case "reminder.overdue":
+      return {
+        title: `Hay ${cardCount} tarjeta(s) vencida(s) en "${boardName}"`,
+        lines: [
+          `Se detectaron ${cardCount} tarjeta(s) con fecha vencida y todavía abiertas.`,
+        ],
+      };
+    case "reminder.upcoming":
+      return {
+        title: `Hay ${cardCount} tarjeta(s) con vencimiento próximo en "${boardName}"`,
+        lines: [
+          `Se detectaron ${cardCount} tarjeta(s) que vencen dentro de los próximos ${data.thresholdDays} día(s).`,
+        ],
+      };
+    case "reminder.inactive":
+      return {
+        title: `Hay ${cardCount} tarjeta(s) sin actividad reciente en "${boardName}"`,
+        lines: [
+          `Se detectaron ${cardCount} tarjeta(s) sin actividad hace al menos ${data.thresholdDays} día(s).`,
+        ],
+      };
+    case "reminder.blocked":
+      return {
+        title: `Hay ${cardCount} tarjeta(s) bloqueada(s) en "${boardName}"`,
+        lines: [
+          `Se detectaron ${cardCount} tarjeta(s) bloqueada(s) hace al menos ${data.thresholdDays} día(s).`,
+        ],
+      };
+  }
+}
+
 function buildBoardEventNotificationText(payload: BoardEventPayload<BoardEvent>) {
   const summary = buildBoardEventSummary(payload);
   const boardUrl = buildBoardUrl(payload.boardId);
 
   return [
     "Se recibió un evento del tablero en ProjectFlow.",
-    `Evento: ${BOARD_EVENT_LABELS[payload.event]}`,
+    `Evento: ${BOARD_EMAIL_NOTIFICATION_EVENT_LABELS[payload.event]}`,
     `Tablero: ${payload.boardId}`,
     `Momento: ${formatFullDate(new Date(payload.timestamp))}`,
     "",
@@ -347,7 +428,7 @@ function buildBoardEventNotificationHtml(payload: BoardEventPayload<BoardEvent>)
         ProjectFlow
       </p>
       <h1 style="font-size:28px;line-height:1.2;margin:0 0 12px;">
-        ${escapeHtml(BOARD_EVENT_LABELS[payload.event])}
+        ${escapeHtml(BOARD_EMAIL_NOTIFICATION_EVENT_LABELS[payload.event])}
       </h1>
       <p style="font-size:16px;line-height:1.6;margin:0 0 20px;color:#334155;">
         ${escapeHtml(summary.title)}
@@ -389,8 +470,101 @@ function buildBoardEventNotificationHtml(payload: BoardEventPayload<BoardEvent>)
   `.trim();
 }
 
-export async function sendBoardEventNotificationEmail(
-  payload: BoardEventPayload<BoardEvent>,
+function buildReminderNotificationText(
+  payload: BoardEmailNotificationPayload<BoardEmailReminderEvent>,
+) {
+  const summary = buildReminderSummary(payload);
+  const data = payload.data as BoardEmailReminderPayloadData;
+  const boardUrl = buildBoardUrl(payload.boardId);
+
+  return [
+    "Se generó un recordatorio automático del tablero en ProjectFlow.",
+    `Tipo: ${BOARD_EMAIL_NOTIFICATION_EVENT_LABELS[payload.event]}`,
+    `Tablero: ${data.boardName || payload.boardId}`,
+    `Momento: ${formatFullDate(new Date(payload.timestamp))}`,
+    "",
+    summary.title,
+    ...summary.lines.map((line) => `- ${line}`),
+    "",
+    "Tarjetas:",
+    ...data.cards.flatMap((card, index) => [
+      `${index + 1}. ${card.title}`,
+      ...buildReminderCardLine(card).map((line) => `   - ${line}`),
+    ]),
+    boardUrl ? "" : null,
+    boardUrl ? `Abrir tablero: ${boardUrl}` : null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+}
+
+function buildReminderNotificationHtml(
+  payload: BoardEmailNotificationPayload<BoardEmailReminderEvent>,
+) {
+  const summary = buildReminderSummary(payload);
+  const data = payload.data as BoardEmailReminderPayloadData;
+  const boardUrl = buildBoardUrl(payload.boardId);
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;color:#0f172a;">
+      <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;margin:0 0 12px;">
+        ProjectFlow
+      </p>
+      <h1 style="font-size:28px;line-height:1.2;margin:0 0 12px;">
+        ${escapeHtml(BOARD_EMAIL_NOTIFICATION_EVENT_LABELS[payload.event])}
+      </h1>
+      <p style="font-size:16px;line-height:1.6;margin:0 0 20px;color:#334155;">
+        ${escapeHtml(summary.title)}
+      </p>
+      <div style="border:1px solid #e2e8f0;border-radius:20px;padding:18px 20px;background:#f8fafc;margin:0 0 20px;">
+        <p style="margin:0 0 8px;font-size:13px;color:#475569;">
+          <strong>Tablero:</strong> ${escapeHtml(data.boardName || payload.boardId)}
+        </p>
+        <p style="margin:0 0 12px;font-size:13px;color:#475569;">
+          <strong>Generado:</strong> ${escapeHtml(formatFullDate(new Date(payload.timestamp)))}
+        </p>
+        <ul style="margin:0;padding-left:18px;color:#334155;">
+          ${summary.lines
+            .map((line) => `<li style="margin:0 0 6px;">${escapeHtml(line)}</li>`)
+            .join("")}
+        </ul>
+      </div>
+      <div style="display:grid;gap:12px;">
+        ${data.cards
+          .map(
+            (card) => `
+              <div style="border:1px solid #e2e8f0;border-radius:18px;padding:16px;background:#ffffff;">
+                <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#0f172a;">
+                  ${escapeHtml(card.title)}
+                </p>
+                <ul style="margin:0;padding-left:18px;color:#334155;font-size:14px;line-height:1.6;">
+                  ${buildReminderCardLine(card)
+                    .map((line) => `<li style="margin:0 0 4px;">${escapeHtml(line)}</li>`)
+                    .join("")}
+                </ul>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+      ${
+        boardUrl
+          ? `
+            <a
+              href="${escapeHtml(boardUrl)}"
+              style="display:inline-block;margin-top:20px;border-radius:16px;background:#0f766e;color:#ffffff;padding:14px 20px;text-decoration:none;font-weight:700;"
+            >
+              Abrir tablero
+            </a>
+          `
+          : ""
+      }
+    </div>
+  `.trim();
+}
+
+export async function sendBoardNotificationEmail(
+  payload: BoardEmailNotificationPayload,
   recipients: string[],
 ): Promise<EmailDeliveryResult> {
   if (recipients.length === 0) {
@@ -405,11 +579,22 @@ export async function sendBoardEventNotificationEmail(
     };
   }
 
+  const isEventPayload = isBoardEvent(payload.event);
+  const subject = `[ProjectFlow] ${BOARD_EMAIL_NOTIFICATION_EVENT_LABELS[payload.event]}`;
+
   return sendEmail({
     to: recipients,
-    subject: `[ProjectFlow] ${BOARD_EVENT_LABELS[payload.event]}`,
-    htmlContent: buildBoardEventNotificationHtml(payload),
-    textContent: buildBoardEventNotificationText(payload),
+    subject,
+    htmlContent: isEventPayload
+      ? buildBoardEventNotificationHtml(payload as BoardEventPayload<BoardEvent>)
+      : buildReminderNotificationHtml(
+          payload as BoardEmailNotificationPayload<BoardEmailReminderEvent>,
+        ),
+    textContent: isEventPayload
+      ? buildBoardEventNotificationText(payload as BoardEventPayload<BoardEvent>)
+      : buildReminderNotificationText(
+          payload as BoardEmailNotificationPayload<BoardEmailReminderEvent>,
+        ),
     logContext: {
       event: payload.event,
       boardId: payload.boardId,
@@ -420,4 +605,11 @@ export async function sendBoardEventNotificationEmail(
     requestFailedEvent: "email.board_event.request_failed",
     providerRejectedEvent: "email.board_event.provider_rejected",
   });
+}
+
+export async function sendBoardEventNotificationEmail(
+  payload: BoardEventPayload<BoardEvent>,
+  recipients: string[],
+) {
+  return sendBoardNotificationEmail(payload, recipients);
 }
