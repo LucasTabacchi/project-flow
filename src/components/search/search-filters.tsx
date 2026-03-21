@@ -152,7 +152,7 @@ export function SearchFilters({
               </label>
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4">
+            <div className="border-t border-border px-4 py-4">
               <label className="inline-flex items-center gap-3 text-sm font-medium text-foreground">
                 <input
                   type="checkbox"
@@ -163,10 +163,6 @@ export function SearchFilters({
                 />
                 Mostrar sólo vencidas
               </label>
-
-              <Button type="submit" variant="secondary" className="shrink-0">
-                Aplicar
-              </Button>
             </div>
           </details>
         </form>

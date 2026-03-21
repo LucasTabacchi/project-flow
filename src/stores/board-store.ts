@@ -28,6 +28,7 @@ type BoardStore = {
   setLists: (lists: BoardListView[]) => void;
   setPresence: (presence: BoardPresenceView[]) => void;
   setFilters: (filters: Partial<BoardFilters>) => void;
+  resetFilters: () => void;
   openCard: (cardId: string) => void;
   closeCard: () => void;
 };
@@ -43,7 +44,7 @@ const defaultFilters: BoardFilters = {
 
 export const useBoardStore = create<BoardStore>((set) => ({
   board: null,
-  filters: defaultFilters,
+  filters: { ...defaultFilters },
   selectedCardId: null,
   hydrateBoard: (board) =>
     set((state) => ({
@@ -101,6 +102,10 @@ export const useBoardStore = create<BoardStore>((set) => ({
         ...filters,
       },
     })),
+  resetFilters: () =>
+    set({
+      filters: { ...defaultFilters },
+    }),
   openCard: (cardId) => set({ selectedCardId: cardId }),
   closeCard: () => set({ selectedCardId: null }),
 }));

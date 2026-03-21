@@ -24,6 +24,7 @@ import {
   updateBoardAction,
 } from "@/app/actions/boards";
 import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
+import { BoardExportMenu } from "@/components/boards/board-export-menu";
 import { WebhookPanel } from "@/components/boards/webhook-panel";
 import { RecurringCardsPanel } from "@/components/boards/recurring-cards-panel";
 import { saveAsBoardTemplateAction } from "@/app/actions/templates";
@@ -234,12 +235,12 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
 
           <Badge className={themeConfig.chipClass}>{getRoleLabel(board.role)}</Badge>
 
-          {/* Título + botones en la misma fila */}
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="font-display text-[clamp(2rem,5vw,3rem)] font-semibold leading-tight">
+          {/* Título + acciones */}
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+            <h2 className="min-w-0 font-display text-[clamp(2rem,5vw,3rem)] font-semibold leading-tight">
               {board.name}
             </h2>
-            <div className="hidden shrink-0 items-center gap-2 pt-1 sm:flex">
+            <div className="hidden flex-wrap items-center gap-2 pt-1 sm:flex 2xl:max-w-[62%] 2xl:justify-end">
               {board.permissions.canManageMembers ? (
                 <InviteMemberDialog boardId={board.id} />
               ) : null}
@@ -280,6 +281,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                 <Activity className="size-4" />
                 Actividad
               </Button>
+              <BoardExportMenu boardId={board.id} />
               {board.permissions.canEdit ? (
                 <Button variant="secondary" className="shrink-0" onClick={() => setRecurringOpen(true)}>
                   <RefreshCw className="size-4" />
@@ -351,6 +353,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
               <Activity className="size-4" />
               Actividad
             </Button>
+            <BoardExportMenu boardId={board.id} align="start" />
             {board.permissions.canEdit ? (
               <Button variant="secondary" className="shrink-0" onClick={() => setRecurringOpen(true)}>
                 <RefreshCw className="size-4" />

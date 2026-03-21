@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useState } from "react";
-import { Bookmark, BookmarkCheck, Trash2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { useBoardStore } from "@/stores/board-store";
@@ -60,6 +60,7 @@ function persistSavedFilters(boardId: string, filters: SavedFilter[]) {
 function BoardFiltersComponent({ boardId, labels, members }: BoardFiltersProps) {
   const filters = useBoardStore((state) => state.filters);
   const setFilters = useBoardStore((state) => state.setFilters);
+  const resetFilters = useBoardStore((state) => state.resetFilters);
 
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [saveName, setSaveName] = useState("");
@@ -112,7 +113,7 @@ function BoardFiltersComponent({ boardId, labels, members }: BoardFiltersProps) 
   return (
     <div className="space-y-3">
       <div className="rounded-2xl border border-border bg-card/70 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))_auto]">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))_auto_auto]">
 
           {/* Búsqueda */}
           <div className="space-y-1.5">
@@ -182,6 +183,20 @@ function BoardFiltersComponent({ boardId, labels, members }: BoardFiltersProps) 
               onClick={() => setFilters({ overdueOnly: !filters.overdueOnly })}
             >
               {filters.overdueOnly ? "✓ Solo vencidas" : "Solo vencidas"}
+            </Button>
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2 xl:col-span-1">
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Acciones</p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-center"
+              disabled={!hasActiveFilters}
+              onClick={resetFilters}
+            >
+              <X className="size-4" />
+              Limpiar filtros
             </Button>
           </div>
         </div>

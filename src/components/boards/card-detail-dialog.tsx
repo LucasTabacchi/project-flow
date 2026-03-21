@@ -36,7 +36,6 @@ import {
   toggleChecklistItemAction,
   updateCardAction,
 } from "@/app/actions/cards";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -848,14 +847,7 @@ export function CardDetailDialog({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap justify-between gap-3 pt-2">
-                      <div className="flex flex-wrap gap-2">
-                        {detail.labels.map((label) => (
-                          <Badge key={label.id} className={LABEL_COLOR_STYLES[label.color].soft}>
-                            {label.name}
-                          </Badge>
-                        ))}
-                      </div>
+                    <div className="flex flex-wrap justify-end gap-3 pt-2">
                       {canEdit ? (
                         <Button
                           onClick={handleSaveCard}
