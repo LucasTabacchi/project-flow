@@ -210,6 +210,81 @@ export type DashboardData = {
   };
 };
 
+export type TimeReportsBoardOption = {
+  id: string;
+  name: string;
+  theme: string;
+};
+
+export type TimeReportsOverview = {
+  totalCards: number;
+  cardsWithEstimate: number;
+  cardsWithoutEstimate: number;
+  totalEstimatedMinutes: number;
+  totalTrackedMinutes: number;
+  varianceMinutes: number;
+  variancePercentage: number | null;
+  overBudgetCards: number;
+  timeEntryCount: number;
+  activeMembers: number;
+};
+
+export type TimeReportBoardSummary = {
+  boardId: string;
+  boardName: string;
+  boardTheme: string;
+  totalEstimatedMinutes: number;
+  totalTrackedMinutes: number;
+  varianceMinutes: number;
+  variancePercentage: number | null;
+  cardCount: number;
+  cardsWithEstimate: number;
+  overBudgetCards: number;
+  timeEntryCount: number;
+  activeMembers: number;
+  lastLoggedAt: string | null;
+};
+
+export type TimeReportMemberSummary = {
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  totalTrackedMinutes: number;
+  timeEntryCount: number;
+  cardsWorkedCount: number;
+  boardCount: number;
+  lastLoggedAt: string | null;
+};
+
+export type TimeReportCardDeviationView = {
+  cardId: string;
+  boardId: string;
+  boardName: string;
+  boardTheme: string;
+  listId: string;
+  listName: string;
+  title: string;
+  status: CardStatus;
+  priority: CardPriority;
+  estimatedMinutes: number;
+  trackedMinutes: number;
+  varianceMinutes: number;
+  variancePercentage: number;
+  updatedAt: string;
+  assignees: UserSummary[];
+};
+
+export type TimeReportsData = {
+  boards: TimeReportsBoardOption[];
+  selectedBoardId: string | null;
+  selectedBoardName: string | null;
+  overview: TimeReportsOverview;
+  byBoard: TimeReportBoardSummary[];
+  byMember: TimeReportMemberSummary[];
+  topVarianceCards: TimeReportCardDeviationView[];
+};
+
 export type CommentReactionView = {
   emoji: string;
   count: number;

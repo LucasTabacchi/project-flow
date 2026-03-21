@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import {
+  BarChart3,
   CalendarDays,
   KanbanSquare,
   LayoutDashboard,
@@ -55,6 +56,12 @@ const mobileNavItems = [
     icon: CalendarDays,
   },
   {
+    href: "/reports",
+    label: "Reportes",
+    description: "Tiempo y desvíos",
+    icon: BarChart3,
+  },
+  {
     href: "/profile",
     label: "Perfil",
     description: "Cuenta y preferencias",
@@ -74,6 +81,10 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   "/calendar": {
     title: "Calendario",
     subtitle: "Seguimiento de entregas y vencimientos.",
+  },
+  "/reports": {
+    title: "Reportes",
+    subtitle: "Tiempo real, estimaciones y desvíos por tablero.",
   },
   "/profile": {
     title: "Perfil",
@@ -174,6 +185,12 @@ export function AppHeader({ user }: AppHeaderProps) {
                   <Link href="/search" prefetch={false}>
                     <Search className="size-4" />
                     Buscador global
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/reports" prefetch={false}>
+                    <BarChart3 className="size-4" />
+                    Reportes
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

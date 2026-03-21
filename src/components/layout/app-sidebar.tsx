@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  BarChart3,
   CalendarDays,
   KanbanSquare,
   LayoutDashboard,
@@ -38,6 +39,12 @@ const navItems = [
     label: "Calendario",
     description: "Fechas de entrega",
     icon: CalendarDays,
+  },
+  {
+    href: "/reports",
+    label: "Reportes",
+    description: "Tiempo y desvíos",
+    icon: BarChart3,
   },
   {
     href: "/profile",
