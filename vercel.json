@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/recurring-cards",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/email-notification-jobs",
+      "schedule": "0 * * * *"
     }
   ]
 }

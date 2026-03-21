@@ -17,6 +17,7 @@ import {
 } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { canEditBoard } from "@/lib/permissions";
+import { enqueueBoardEmailNotificationJob } from "@/lib/board-email-notifications";
 import { createNotifications } from "@/lib/notifications";
 import { fireBoardWebhooks } from "@/app/actions/webhooks";
 import { logActivity, getCardActivity } from "@/lib/activity";
@@ -262,6 +263,13 @@ export async function createCardAction(
     listName: list.name,
     createdBy: user.name,
   });
+  enqueueBoardEmailNotificationJob(parsed.data.boardId, "card.created", {
+    cardId: card.id,
+    cardTitle: parsed.data.title,
+    listId: parsed.data.listId,
+    listName: list.name,
+    createdBy: user.name,
+  });
 
   return success(
     {
@@ -393,6 +401,13 @@ export async function updateCardAction(
       newStatus,
       updatedBy: user.name,
     });
+    enqueueBoardEmailNotificationJob(parsed.data.boardId, "card.status_changed", {
+      cardId: detail.id,
+      cardTitle: detail.title,
+      oldStatus: oldStatus ?? null,
+      newStatus,
+      updatedBy: user.name,
+    });
   }
 
   if (newlyAssignedIds.length) {
@@ -412,6 +427,12 @@ export async function updateCardAction(
       meta: { cardId: detail.id, cardTitle: detail.title },
     });
     fireBoardWebhooks(parsed.data.boardId, "card.assigned", {
+      cardId: detail.id,
+      cardTitle: detail.title,
+      assignedBy: user.name,
+      assignees: newAssignees,
+    });
+    enqueueBoardEmailNotificationJob(parsed.data.boardId, "card.assigned", {
       cardId: detail.id,
       cardTitle: detail.title,
       assignedBy: user.name,
@@ -598,6 +619,13 @@ export async function reorderCardsAction(input: unknown): Promise<ActionResult> 
       toList: moved.toList,
       movedBy: user.name,
     });
+    enqueueBoardEmailNotificationJob(parsed.data.boardId, "card.moved", {
+      cardId: moved.cardId,
+      cardTitle: moved.cardTitle,
+      fromList: moved.fromList,
+      toList: moved.toList,
+      movedBy: user.name,
+    });
   }
 
   return success(undefined, "Tarjetas reordenadas.");
@@ -685,6 +713,12 @@ export async function addCommentAction(
   });
 
   fireBoardWebhooks(parsed.data.boardId, "comment.added", {
+    cardId: detail.id,
+    cardTitle: detail.title,
+    commentBody: parsed.data.body,
+    commentedBy: user.name,
+  });
+  enqueueBoardEmailNotificationJob(parsed.data.boardId, "comment.added", {
     cardId: detail.id,
     cardTitle: detail.title,
     commentBody: parsed.data.body,

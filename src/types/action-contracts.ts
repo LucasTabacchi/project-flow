@@ -73,3 +73,21 @@ export type WebhookView = {
     createdAt: string;
   }[];
 };
+
+export type BoardEmailNotificationJobView = {
+  id: string;
+  event: string;
+  status: "PENDING" | "PROCESSING" | "SENT" | "FAILED";
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  sentAt: string | null;
+};
+
+export type BoardEmailNotificationSettingsView = {
+  active: boolean;
+  recipients: string[];
+  events: string[];
+  updatedAt: string | null;
+  recentJobs: BoardEmailNotificationJobView[];
+};

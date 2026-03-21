@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { createNotification } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
 import { ActivityType } from "@prisma/client";
+import { enqueueBoardEmailNotificationJob } from "@/lib/board-email-notifications";
 import { fireBoardWebhooks } from "@/app/actions/webhooks";
 
 import {
@@ -457,6 +458,11 @@ export async function createListAction(
     meta: { listName: parsed.data.name },
   });
   fireBoardWebhooks(parsed.data.boardId, "list.created", {
+    listId: list.id,
+    listName: list.name,
+    createdBy: user.name,
+  });
+  enqueueBoardEmailNotificationJob(parsed.data.boardId, "list.created", {
     listId: list.id,
     listName: list.name,
     createdBy: user.name,
@@ -924,6 +930,13 @@ export async function acceptInvitationAction(
       role: invitation.role,
       joinedBy: user.name,
     });
+    enqueueBoardEmailNotificationJob(invitation.boardId, "member.joined", {
+      memberUserId: user.id,
+      memberName: user.name,
+      memberEmail: user.email,
+      role: invitation.role,
+      joinedBy: user.name,
+    });
 
     // Notificar al owner que alguien aceptó
     createNotification({
@@ -1049,6 +1062,13 @@ export async function acceptInvitationByTokenAction(
       summary: `se unió al tablero`,
     });
     fireBoardWebhooks(invitation.boardId, "member.joined", {
+      memberUserId: user.id,
+      memberName: user.name,
+      memberEmail: user.email,
+      role: invitation.role,
+      joinedBy: user.name,
+    });
+    enqueueBoardEmailNotificationJob(invitation.boardId, "member.joined", {
       memberUserId: user.id,
       memberName: user.name,
       memberEmail: user.email,

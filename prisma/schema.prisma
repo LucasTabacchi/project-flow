@@ -69,6 +69,13 @@ enum ActivityType {
   CARD_TIME_LOGGED
 }
 
+enum BoardEmailNotificationJobStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
 model User {
   id                      String            @id @default(cuid())
   name                    String
@@ -128,6 +135,8 @@ model Board {
   presences       BoardPresence[]
   activities      BoardActivity[]
   webhooks        Webhook[]
+  emailNotificationSetting BoardEmailNotificationSetting?
+  emailNotificationJobs BoardEmailNotificationJob[]
   recurringCards  RecurringCard[]
 
   @@index([ownerId])
@@ -444,6 +453,39 @@ model WebhookDelivery {
   webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   @@index([webhookId, createdAt])
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Ronda 4: notificaciones por email internas ──────────────────────────────
+model BoardEmailNotificationSetting {
+  id         String   @id @default(cuid())
+  boardId    String   @unique
+  recipients String[]
+  events     String[]
+  active     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  board      Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, active])
+}
+
+model BoardEmailNotificationJob {
+  id         String                          @id @default(cuid())
+  boardId    String
+  event      String
+  payload    Json
+  recipients String[]
+  status     BoardEmailNotificationJobStatus @default(PENDING)
+  attempts   Int                             @default(0)
+  lastError  String?
+  createdAt  DateTime                        @default(now())
+  updatedAt  DateTime                        @updatedAt
+  sentAt     DateTime?
+  board      Board                           @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([boardId, createdAt])
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
