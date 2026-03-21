@@ -1,17 +1,34 @@
 # ProjectFlow
 
-App web de gestion de proyectos tipo Trello, construida con `Next.js 16`, `React 19`, `TypeScript`, `Tailwind CSS`, `Prisma`, `Supabase Postgres`, `Zustand` y `dnd-kit`.
+ProjectFlow es una app web de gestión de proyectos tipo Trello, construida con `Next.js 16`, `React 19`, `TypeScript`, `Tailwind CSS`, `Prisma`, `Supabase Postgres`, `Zustand` y `dnd-kit`.
 
-## Incluye
+## Qué incluye
 
-- Autenticacion segura con email y contrasena, sesiones HTTP-only persistidas y perfil de usuario
-- Dashboard con resumen de tableros, proximas entregas e invitaciones pendientes
+- Autenticación con email y contraseña, sesiones HTTP-only persistidas y perfil de usuario
+- Dashboard con resumen de tableros, próximas entregas e invitaciones pendientes
 - Tableros con listas y tarjetas movibles por drag and drop
-- Detalle de tarjeta con descripcion, prioridad, estado, fecha, checklist, comentarios y adjuntos por URL
+- Detalle de tarjeta con descripción, prioridad, estado, fecha límite, checklist, comentarios, historial, tiempo y adjuntos por URL
+- Actividad del tablero y notificaciones personales
 - Miembros por tablero con roles `OWNER`, `EDITOR` y `VIEWER`
-- Invitaciones por email con enlace publico de aceptacion
-- Busqueda global con filtros
+- Invitaciones por email con enlace público de aceptación
+- Búsqueda global con filtros
 - Vista calendario de vencimientos
+- Exportación de tableros a `CSV` y `PDF`
+- Tarjetas recurrentes con cron diario
+- Automatizaciones por reglas al cambiar el estado de una tarjeta
+- Dependencias entre tarjetas
+- Campos personalizados por tablero
+- Reportes de tiempo:
+  - estimado vs real
+  - tiempo por miembro
+  - tiempo por tablero
+  - tarjetas con mayor desvío
+- Notificaciones internas por email por tablero:
+  - eventos seleccionados
+  - recordatorios por vencimiento
+  - recordatorios por próxima fecha límite
+  - recordatorios por inactividad
+  - recordatorios por bloqueos
 - Modo oscuro
 - Seed de datos demo
 
@@ -19,16 +36,24 @@ App web de gestion de proyectos tipo Trello, construida con `Next.js 16`, `React
 
 - Frontend: `Next.js App Router` + `React` + `TypeScript`
 - Estilos: `Tailwind CSS v4`
-- UI base: componentes reutilizables inspirados en `shadcn/ui`
-- Backend: `Server Actions`
+- UI base: componentes reutilizables sobre Radix UI
+- Backend: `Server Actions` + Route Handlers
 - Base de datos: `Supabase Postgres`
 - ORM: `Prisma`
 - Estado cliente: `Zustand`
 - Drag and drop: `dnd-kit`
-- Email transaccional: API de `Resend` via `fetch`
+- Email transaccional: `Brevo`
+- Tiempo real / colaboración multi-instancia: `Upstash Redis` opcional
 - Deploy objetivo: `Vercel`
 
-## Configuracion con Supabase
+## Requisitos
+
+- `Node.js 20+`
+- Base PostgreSQL compatible con Prisma
+- Cuenta de Supabase para la base
+- Cuenta de Brevo si querés envío de emails
+
+## Configuración con Supabase
 
 ### 1. Crear el proyecto
 
@@ -40,34 +65,42 @@ Creá un proyecto en Supabase y anotá:
 
 ### 2. Crear un usuario dedicado para Prisma
 
-Recomendado para produccion. En el SQL Editor de Supabase ejecutá:
+Recomendado para producción. En el SQL Editor de Supabase ejecutá:
 
-[`supabase/setup-prisma-role.sql`](C:\Users\lucas\Desktop\projectflow\supabase\setup-prisma-role.sql)
+`supabase/setup-prisma-role.sql`
 
-Después reemplazá `'replace_with_a_strong_password'` por una contraseña real y usá ese usuario en las URLs de conexion.
+Después reemplazá `'replace_with_a_strong_password'` por una contraseña real y usá ese usuario en las URLs de conexión.
 
 ### 3. Variables de entorno
 
 Creá `.env.local` a partir de `.env.example`.
 
+Variables principales:
+
 ```env
-# Runtime en Vercel / serverless:
-# Supavisor transaction pooler (puerto 6543) + pgbouncer=true + connection_limit=1
+# Runtime Next.js / serverless
 DATABASE_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
 
-# Prisma CLI / db push / migrations:
-# Supavisor session pooler (puerto 5432)
+# Prisma CLI / migrations
 DIRECT_URL="postgresql://prisma.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres"
 
-# Opcional: cambia el nombre por defecto de la cookie de sesion
+# Opcional: nombre personalizado para la cookie de sesión
 SESSION_COOKIE_NAME="projectflow_session"
 
-# URL publica usada para generar enlaces de invitacion
-APP_URL="https://tu-dominio.com"
+# URL pública de la app
+APP_URL="http://localhost:3000"
 
-# Envio de invitaciones por email
-RESEND_API_KEY="re_..."
-EMAIL_FROM="ProjectFlow <onboarding@tu-dominio.com>"
+# Email con Brevo
+BREVO_API_KEY="xkeysib-..."
+EMAIL_FROM_ADDRESS="tu@email.com"
+EMAIL_FROM_NAME="ProjectFlow"
+
+# Redis opcional para colaboración multi-instancia y caché
+UPSTASH_REDIS_REST_URL="https://YOUR-DB.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your_token_here"
+
+# Requerido para cron jobs protegidos
+CRON_SECRET="un-secreto-largo-y-aleatorio"
 ```
 
 ### 4. Sincronizar el schema
@@ -76,12 +109,6 @@ EMAIL_FROM="ProjectFlow <onboarding@tu-dominio.com>"
 npx prisma generate
 npm run db:push
 ```
-
-### 4.1. Optimizar la búsqueda en Supabase
-
-Opcional pero recomendado si el volumen de tarjetas empieza a crecer. En el SQL Editor de Supabase ejecutá:
-
-[`supabase/setup-search-indexes.sql`](C:\Users\lucas\Desktop\projectflow\supabase\setup-search-indexes.sql)
 
 ### 5. Cargar datos demo
 
@@ -95,31 +122,71 @@ npm run db:seed
 npm run dev
 ```
 
-## Usuarios demo
-
-- `sofia@projectflow.dev` / `Demo1234!`
-- `diego@projectflow.dev` / `Demo1234!`
-- `lucia@projectflow.dev` / `Demo1234!`
-
-## Scripts utiles
+## Scripts útiles
 
 - `npm run dev`: desarrollo local
-- `npm run build`: build de produccion
+- `npm run build`: build de producción
 - `npm run start`: servir build local
 - `npm run lint`: chequeo ESLint
 - `npm run typecheck`: chequeo TypeScript
-- `npm run db:push`: sincronizar schema Prisma con Supabase
+- `npm run db:push`: sincronizar schema Prisma
 - `npm run db:migrate`: migraciones Prisma en local
 - `npm run db:seed`: cargar seed demo
 - `npm run db:studio`: abrir Prisma Studio
+
+## Funcionalidades principales
+
+### Tableros y tarjetas
+
+- Creación de tableros con miembros, roles y etiquetas
+- Listas y tarjetas con drag and drop
+- Estado, prioridad, fecha límite y tiempo estimado / registrado
+- Checklists, comentarios, historial y adjuntos por URL
+- Dependencias entre tarjetas para modelar bloqueos
+
+### Automatización
+
+- Reglas que reaccionan a cambios de estado
+- Acciones disponibles:
+  - mover a otra lista
+  - asignar miembros
+  - definir vencimiento en X días
+  - enviar emails a destinatarios de la regla
+
+### Recurrencia
+
+- Tarjetas recurrentes configurables por tablero
+- Materialización automática vía cron
+
+### Emails internos
+
+- Configuración por tablero de destinatarios y eventos
+- Cola interna de envíos
+- Recordatorios diarios por:
+  - tarjeta vencida
+  - vencimiento próximo
+  - sin actividad hace X días
+  - bloqueada hace X días
+
+### Reportes
+
+- Vista `/reports` con métricas server-side
+- Agregados por miembro y por tablero
+- Ranking de tarjetas con mayor desvío entre estimado y real
+
+### Exportación
+
+- Descarga de tablero en `CSV`
+- Descarga de tablero en `PDF`
 
 ## Estructura
 
 ```text
 src/
   app/
-    (auth)/login, register
-    (app)/dashboard, boards/[boardId], search, calendar, profile
+    (auth)/
+    (app)/
+    api/
     actions/
   components/
     auth/
@@ -128,6 +195,7 @@ src/
     dashboard/
     layout/
     profile/
+    reports/
     search/
     ui/
   lib/
@@ -140,38 +208,7 @@ prisma/
   seed.ts
 supabase/
   setup-prisma-role.sql
+vercel.json
 ```
 
-## Notas tecnicas
 
-- Prisma usa `DATABASE_URL` para el runtime y `DIRECT_URL` para operaciones CLI que requieren una conexion dedicada.
-- El datasource ya esta configurado con `directUrl` en [`prisma/schema.prisma`](C:\Users\lucas\Desktop\projectflow\prisma\schema.prisma).
-- Las sesiones usan el modelo `Session` de Prisma y una cookie opaca HTTP-only; el servidor resuelve siempre el usuario actual desde base de datos.
-- Las invitaciones generan un `token` unico, envian un correo mediante Resend cuando está configurado y exponen una ruta publica `/invite/[token]` para iniciar sesion, registrarse y aceptar desde el mismo enlace.
-- El acceso a tableros siempre se valida del lado del servidor.
-- Las mutaciones usan `Zod` y revalidan rutas afectadas.
-- Login, registro e invitaciones tienen rate limiting básico del lado del servidor para bajar abuso accidental o automatizado.
-- Los fallos de autenticación, invitaciones y email dejan logs estructurados en el runtime del servidor para facilitar diagnóstico.
-- El board usa una frontera cliente acotada para `dnd-kit`; el resto de paginas se apoya en Server Components.
-- Los adjuntos se modelan como links externos para mantener la app lista sin depender de storage externo.
-- Si vas a usar solo Prisma y no el Data API de Supabase, podés desactivarlo desde Settings si querés simplificar la superficie expuesta.
-
-## Deploy en Vercel
-
-Definí estas variables en Vercel:
-
-- `DATABASE_URL`
-- `DIRECT_URL`
-- `SESSION_COOKIE_NAME` opcional si querés cambiar el nombre por defecto de la cookie
-- `APP_URL`
-- `RESEND_API_KEY`
-- `EMAIL_FROM`
-
-Luego hacé deploy normal. El build ya fue validado con `next build`.
-
-## Verificacion realizada
-
-- `npx prisma generate`
-- `npx tsc --noEmit`
-- `npm run lint`
-- `npm run build`
