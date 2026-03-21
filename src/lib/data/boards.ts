@@ -18,6 +18,7 @@ import type {
   BoardMemberView,
   BoardPageData,
   BoardRole,
+  CardDependencyView,
   CardDetailView,
   CardSummaryView,
   LabelView,
@@ -60,6 +61,32 @@ function serializeLabels(
     name: label.name,
     color: label.color,
   }));
+}
+
+function serializeCardDependency(input: {
+  dependencyId: string;
+  card: {
+    id: string;
+    listId: string;
+    title: string;
+    dueDate: Date | null;
+    status: CardDependencyView["status"];
+    priority: CardDependencyView["priority"];
+    list: {
+      name: string;
+    };
+  };
+}): CardDependencyView {
+  return {
+    dependencyId: input.dependencyId,
+    cardId: input.card.id,
+    listId: input.card.listId,
+    listName: input.card.list.name,
+    title: input.card.title,
+    dueDate: input.card.dueDate?.toISOString() ?? null,
+    status: input.card.status,
+    priority: input.card.priority,
+  };
 }
 
 function serializeCardSummary(card: {
@@ -644,6 +671,50 @@ export async function getCardDetail(
           createdAt: "desc",
         },
       },
+      blocking: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        include: {
+          blockedCard: {
+            select: {
+              id: true,
+              listId: true,
+              title: true,
+              dueDate: true,
+              status: true,
+              priority: true,
+              list: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      blockedBy: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        include: {
+          blockerCard: {
+            select: {
+              id: true,
+              listId: true,
+              title: true,
+              dueDate: true,
+              status: true,
+              priority: true,
+              list: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
       // ── Ronda 1: time entries ──────────────────────────────────────────────
       timeEntries: {
         orderBy: { createdAt: "desc" },
@@ -717,6 +788,18 @@ export async function getCardDetail(
       mimeType: attachment.mimeType,
       createdAt: attachment.createdAt.toISOString(),
     })),
+    blocking: card.blocking.map((dependency) =>
+      serializeCardDependency({
+        dependencyId: dependency.id,
+        card: dependency.blockedCard,
+      }),
+    ),
+    blockedBy: card.blockedBy.map((dependency) =>
+      serializeCardDependency({
+        dependencyId: dependency.id,
+        card: dependency.blockerCard,
+      }),
+    ),
     // ── Ronda 1 ────────────────────────────────────────────────────────────
     estimatedMinutes: card.estimatedMinutes,
     trackedMinutes: card.trackedMinutes,

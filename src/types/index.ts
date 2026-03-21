@@ -259,6 +259,17 @@ export type TimeEntryView = {
   user: UserSummary;
 };
 
+export type CardDependencyView = {
+  dependencyId: string;
+  cardId: string;
+  listId: string;
+  listName: string;
+  title: string;
+  dueDate: string | null;
+  status: CardStatus;
+  priority: CardPriority;
+};
+
 // ── Ronda 1: historial de tarjeta ─────────────────────────────────────────────
 
 export type CardHistoryItem = {
@@ -291,6 +302,8 @@ export type CardDetailView = {
   comments: CardCommentView[];
   checklists: ChecklistView[];
   attachments: AttachmentView[];
+  blocking: CardDependencyView[];
+  blockedBy: CardDependencyView[];
   // ── Ronda 1 ──
   estimatedMinutes: number | null;
   trackedMinutes: number;

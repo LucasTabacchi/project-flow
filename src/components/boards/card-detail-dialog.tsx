@@ -74,6 +74,7 @@ import {
   toDateInputValue,
 } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/avatar";
+import { CardDependenciesPanel } from "@/components/boards/card-dependencies-panel";
 import type {
   BoardMemberView,
   BoardPresenceView,
@@ -571,6 +572,11 @@ export function CardDetailDialog({
         replaceCardInBoard(board, result.data!.detail, result.data!.boardUpdatedAt),
       );
     });
+  }
+
+  function handleDependencyUpdate(nextDetail: CardDetailView, boardUpdatedAt: string) {
+    syncDetail(nextDetail);
+    mutateBoard((board) => replaceCardInBoard(board, nextDetail, boardUpdatedAt));
   }
 
   function handleDeleteCard() {
@@ -1297,6 +1303,13 @@ export function CardDetailDialog({
                     )}
                   </div>
                 </div>
+
+                <CardDependenciesPanel
+                  boardId={boardId}
+                  detail={detail}
+                  canEdit={canEdit}
+                  onDetailUpdate={handleDependencyUpdate}
+                />
 
                 <div className="rounded-[28px] border border-border bg-background/70 p-4">
                   <p className="text-sm font-semibold">Responsables</p>

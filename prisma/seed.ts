@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 const prisma = new PrismaClient();
 
 async function resetDatabase() {
+  await prisma.cardDependency.deleteMany();
   await prisma.cardAssignment.deleteMany();
   await prisma.cardLabel.deleteMany();
   await prisma.attachment.deleteMany();

@@ -59,6 +59,8 @@ enum ActivityType {
   CARD_RENAMED
   CARD_STATUS_CHANGED
   CARD_ASSIGNED
+  CARD_DEPENDENCY_ADDED
+  CARD_DEPENDENCY_REMOVED
   CARD_COMMENT_ADDED
   CARD_DUE_DATE_SET
   CARD_DUE_DATE_REMOVED
@@ -107,6 +109,7 @@ model User {
   commentReactions        CommentReaction[]
   boardTemplates          BoardTemplate[]
   recurringCards          RecurringCard[]
+  createdCardDependencies CardDependency[]  @relation("CardDependencyCreatedBy")
 }
 
 model Session {
@@ -141,6 +144,7 @@ model Board {
   activities      BoardActivity[]
   emailNotificationSetting BoardEmailNotificationSetting?
   emailNotificationJobs BoardEmailNotificationJob[]
+  cardDependencies CardDependency[]
   automationRules BoardAutomationRule[]
   recurringCards  RecurringCard[]
 
@@ -226,12 +230,31 @@ model Card {
   attachments       Attachment[]
   presences         BoardPresence[]
   timeEntries       TimeEntry[]
+  blocking          CardDependency[] @relation("CardBlocks")
+  blockedBy         CardDependency[] @relation("CardBlockedBy")
   recurringSourceId String?        // FK to RecurringCard if spawned
   recurringSource   RecurringCard?  @relation("SpawnedFromRecurring", fields: [recurringSourceId], references: [id], onDelete: SetNull)
 
   @@index([boardId, dueDate])
   @@index([boardId, status])
   @@index([listId, position])
+}
+
+model CardDependency {
+  id            String   @id @default(cuid())
+  boardId       String
+  blockerCardId String
+  blockedCardId String
+  createdById   String
+  createdAt     DateTime @default(now())
+  board         Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  blockerCard   Card     @relation("CardBlocks", fields: [blockerCardId], references: [id], onDelete: Cascade)
+  blockedCard   Card     @relation("CardBlockedBy", fields: [blockedCardId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation("CardDependencyCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([blockerCardId, blockedCardId])
+  @@index([boardId, blockerCardId])
+  @@index([boardId, blockedCardId])
 }
 
 // ── Ronda 1: registro de sesiones de trabajo ──────────────────────────────────
