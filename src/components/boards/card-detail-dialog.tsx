@@ -1444,9 +1444,9 @@ export function CardDetailDialog({
             {detail ? (
               <ScrollArea
                 type="always"
-                className="max-h-[42vh] pr-2 sm:max-h-[48vh] sm:pr-4 lg:max-h-[calc(92vh-2rem)]"
+                className="h-[42vh] pr-2 sm:h-[48vh] sm:pr-4 lg:h-[calc(92vh-2rem)]"
               >
-                <div className="space-y-5">
+                <div className="space-y-5 pb-4">
                   <div className="rounded-[28px] border border-border bg-background/70 p-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                       Metadatos
