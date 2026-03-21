@@ -1440,117 +1440,119 @@ export function CardDetailDialog({
           </div>
 
           {/* ── Right panel ────────────────────────────────────────────────── */}
-          <aside className="bg-card/70 p-4 sm:p-6">
+          <aside className="min-h-0 bg-card/70 p-4 sm:overflow-hidden sm:p-6">
             {detail ? (
-              <div className="space-y-5">
-                <div className="rounded-[28px] border border-border bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Metadatos
-                  </p>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Creada por</p>
-                      <p className="font-medium">{detail.createdBy.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Creación</p>
-                      <p className="font-medium">{formatFullDate(detail.createdAt)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Última actualización</p>
-                      <p className="font-medium">{formatRelativeDistance(detail.updatedAt)}</p>
-                    </div>
-                    {(detail.estimatedMinutes || detail.trackedMinutes > 0) && (
-                      <div className="pt-2 border-t border-border/60">
-                        <p className="text-muted-foreground">Tiempo</p>
-                        <p className="font-medium tabular-nums">
-                          {formatMinutes(detail.trackedMinutes)}
-                          {detail.estimatedMinutes
-                            ? ` / ${formatMinutes(detail.estimatedMinutes)}`
-                            : ""}
-                        </p>
-                        {detail.estimatedMinutes ? (
-                          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                            <div
-                              className={`h-full rounded-full ${
-                                timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
-                                  ? "bg-destructive"
-                                  : "bg-primary"
-                              }`}
-                              style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
-                            />
-                          </div>
-                        ) : null}
+              <ScrollArea className="max-h-[42vh] pr-2 sm:max-h-[48vh] sm:pr-4 lg:h-full lg:max-h-none">
+                <div className="space-y-5">
+                  <div className="rounded-[28px] border border-border bg-background/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Metadatos
+                    </p>
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Creada por</p>
+                        <p className="font-medium">{detail.createdBy.name}</p>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <CardDependenciesPanel
-                  boardId={boardId}
-                  detail={detail}
-                  canEdit={canEdit}
-                  onDetailUpdate={handleDependencyUpdate}
-                />
-
-                <div className="rounded-[28px] border border-border bg-background/70 p-4">
-                  <p className="text-sm font-semibold">Responsables</p>
-                  <div className="mt-3 space-y-2">
-                    {detail.assignees.length ? (
-                      detail.assignees.map((a) => (
-                        <div key={a.userId} className="rounded-2xl border border-border px-3 py-2 text-sm">
-                          <p className="font-medium">{a.name}</p>
-                          <p className="text-xs text-muted-foreground">{a.email}</p>
+                      <div>
+                        <p className="text-muted-foreground">Creación</p>
+                        <p className="font-medium">{formatFullDate(detail.createdAt)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Última actualización</p>
+                        <p className="font-medium">{formatRelativeDistance(detail.updatedAt)}</p>
+                      </div>
+                      {(detail.estimatedMinutes || detail.trackedMinutes > 0) && (
+                        <div className="border-t border-border/60 pt-2">
+                          <p className="text-muted-foreground">Tiempo</p>
+                          <p className="font-medium tabular-nums">
+                            {formatMinutes(detail.trackedMinutes)}
+                            {detail.estimatedMinutes
+                              ? ` / ${formatMinutes(detail.estimatedMinutes)}`
+                              : ""}
+                          </p>
+                          {detail.estimatedMinutes ? (
+                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                              <div
+                                className={`h-full rounded-full ${
+                                  timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
+                                    ? "bg-destructive"
+                                    : "bg-primary"
+                                }`}
+                                style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
+                              />
+                            </div>
+                          ) : null}
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Todavía no hay responsables asignados.
-                      </p>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="rounded-[28px] border border-border bg-background/70 p-4">
-                  <p className="text-sm font-semibold">Viendo esta tarjeta</p>
-                  <div className="mt-3 space-y-2">
-                    {activeViewers.length ? (
-                      activeViewers.map((viewer) => (
-                        <div
-                          key={viewer.userId}
-                          className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm"
-                        >
-                          <UserAvatar name={viewer.name} src={viewer.avatarUrl} className="size-9" />
-                          <div className="min-w-0">
-                            <p className="font-medium">{viewer.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {viewer.sessionCount > 1
-                                ? `${viewer.sessionCount} sesiones abiertas`
-                                : "Online en esta tarjeta"}
-                            </p>
+                  <CardDependenciesPanel
+                    boardId={boardId}
+                    detail={detail}
+                    canEdit={canEdit}
+                    onDetailUpdate={handleDependencyUpdate}
+                  />
+
+                  <div className="rounded-[28px] border border-border bg-background/70 p-4">
+                    <p className="text-sm font-semibold">Responsables</p>
+                    <div className="mt-3 space-y-2">
+                      {detail.assignees.length ? (
+                        detail.assignees.map((a) => (
+                          <div key={a.userId} className="rounded-2xl border border-border px-3 py-2 text-sm">
+                            <p className="font-medium">{a.name}</p>
+                            <p className="text-xs text-muted-foreground">{a.email}</p>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No hay presencia activa en esta tarjeta.
-                      </p>
-                    )}
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Todavía no hay responsables asignados.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {canEdit ? (
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    disabled={isPending}
-                    onClick={handleDeleteCard}
-                  >
-                    <Trash2 className="size-4" />
-                    Eliminar tarjeta
-                  </Button>
-                ) : null}
-              </div>
+                  <div className="rounded-[28px] border border-border bg-background/70 p-4">
+                    <p className="text-sm font-semibold">Viendo esta tarjeta</p>
+                    <div className="mt-3 space-y-2">
+                      {activeViewers.length ? (
+                        activeViewers.map((viewer) => (
+                          <div
+                            key={viewer.userId}
+                            className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm"
+                          >
+                            <UserAvatar name={viewer.name} src={viewer.avatarUrl} className="size-9" />
+                            <div className="min-w-0">
+                              <p className="font-medium">{viewer.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {viewer.sessionCount > 1
+                                  ? `${viewer.sessionCount} sesiones abiertas`
+                                  : "Online en esta tarjeta"}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No hay presencia activa en esta tarjeta.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {canEdit ? (
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      disabled={isPending}
+                      onClick={handleDeleteCard}
+                    >
+                      <Trash2 className="size-4" />
+                      Eliminar tarjeta
+                    </Button>
+                  ) : null}
+                </div>
+              </ScrollArea>
             ) : (
               <div className="flex h-full items-center justify-center">
                 <LoaderCircle className="size-8 animate-spin text-primary" />
