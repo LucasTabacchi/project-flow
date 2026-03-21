@@ -120,6 +120,107 @@ function timeProgress(tracked: number, estimated: number): number {
   return Math.min(100, Math.round((tracked / estimated) * 100));
 }
 
+function buildCustomFieldDrafts(customFields: CardDetailView["customFields"]) {
+  return Object.fromEntries(
+    customFields.map((field) => [
+      field.fieldId,
+      field.type === "NUMBER"
+        ? field.numberValue != null
+          ? String(field.numberValue)
+          : ""
+        : field.type === "SELECT"
+          ? field.optionValue ?? ""
+          : field.textValue ?? "",
+    ]),
+  );
+}
+
+function buildCustomFieldPayload(
+  customFields: CardDetailView["customFields"],
+  drafts: Record<string, string>,
+) {
+  const values = [];
+
+  for (const field of customFields) {
+    const rawValue = drafts[field.fieldId] ?? "";
+    const trimmedValue = rawValue.trim();
+
+    if (field.type === "NUMBER") {
+      if (trimmedValue === "") {
+        values.push({
+          fieldId: field.fieldId,
+          textValue: null,
+          numberValue: null,
+          optionValue: null,
+        });
+        continue;
+      }
+
+      const numericValue = Number(trimmedValue);
+
+      if (Number.isNaN(numericValue)) {
+        return {
+          ok: false as const,
+          message: `El campo "${field.name}" necesita un número válido.`,
+        };
+      }
+
+      values.push({
+        fieldId: field.fieldId,
+        textValue: null,
+        numberValue: numericValue,
+        optionValue: null,
+      });
+      continue;
+    }
+
+    if (field.type === "SELECT") {
+      values.push({
+        fieldId: field.fieldId,
+        textValue: null,
+        numberValue: null,
+        optionValue: trimmedValue || null,
+      });
+      continue;
+    }
+
+    values.push({
+      fieldId: field.fieldId,
+      textValue: trimmedValue || null,
+      numberValue: null,
+      optionValue: null,
+    });
+  }
+
+  return {
+    ok: true as const,
+    values,
+  };
+}
+
+function haveSameCustomFieldValues(
+  customFields: CardDetailView["customFields"],
+  drafts: Record<string, string>,
+) {
+  return customFields.every((field) => {
+    const draft = (drafts[field.fieldId] ?? "").trim();
+
+    if (field.type === "NUMBER") {
+      if (draft === "") {
+        return field.numberValue == null;
+      }
+
+      return Number(draft) === field.numberValue;
+    }
+
+    if (field.type === "SELECT") {
+      return draft === (field.optionValue ?? "");
+    }
+
+    return draft === (field.textValue ?? "");
+  });
+}
+
 // ── Textarea con autocompletado @menciones ────────────────────────────────────
 
 type MentionTextareaProps = {
@@ -287,6 +388,7 @@ export function CardDetailDialog({
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [estimatedMinutes, setEstimatedMinutes] = useState<string>("");
+  const [customFieldDrafts, setCustomFieldDrafts] = useState<Record<string, string>>({});
 
   const [comment, setComment] = useState("");
   const [checklistTitle, setChecklistTitle] = useState("");
@@ -435,6 +537,7 @@ export function CardDetailDialog({
     setEstimatedMinutes(
       nextDetail.estimatedMinutes != null ? String(nextDetail.estimatedMinutes) : "",
     );
+    setCustomFieldDrafts(buildCustomFieldDrafts(nextDetail.customFields));
     // Initialize reactions from preloaded comment data
     const rxMap: Record<string, CommentReactionView[]> = {};
     for (const c of nextDetail.comments) {
@@ -458,6 +561,7 @@ export function CardDetailDialog({
     setTimerActive(false);
     setTimerStart(null);
     setCommentReactions({});
+    setCustomFieldDrafts({});
     onActiveFieldChange?.(null);
   }
 
@@ -480,10 +584,11 @@ export function CardDetailDialog({
       priority !== detail.priority ||
       status !== detail.status ||
       estMins !== detail.estimatedMinutes ||
+      !haveSameCustomFieldValues(detail.customFields, customFieldDrafts) ||
       !haveSameValues(selectedLabels, detail.labels.map((l) => l.id)) ||
       !haveSameValues(selectedAssignees, detail.assignees.map((a) => a.userId))
     );
-  }, [description, detail, dueDate, estimatedMinutes, priority, selectedAssignees, selectedLabels, status, title]);
+  }, [customFieldDrafts, description, detail, dueDate, estimatedMinutes, priority, selectedAssignees, selectedLabels, status, title]);
 
   const activeViewers = useMemo(() => {
     if (!detail) return [];
@@ -551,6 +656,13 @@ export function CardDetailDialog({
   function handleSaveCard() {
     if (!detail) return;
     const estMins = estimatedMinutes === "" ? null : parseInt(estimatedMinutes, 10) || null;
+    const customFieldPayload = buildCustomFieldPayload(detail.customFields, customFieldDrafts);
+
+    if (!customFieldPayload.ok) {
+      toast.error(customFieldPayload.message);
+      return;
+    }
+
     startTransition(async () => {
       const result = await updateCardAction({
         boardId,
@@ -563,6 +675,7 @@ export function CardDetailDialog({
         labelIds: selectedLabels,
         assigneeIds: selectedAssignees,
         estimatedMinutes: estMins,
+        customFieldValues: customFieldPayload.values,
       });
       if (!result.ok) { toast.error(result.message); return; }
       toast.success(result.message ?? "Tarjeta actualizada.");
@@ -827,6 +940,75 @@ export function CardDetailDialog({
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Campos personalizados</Label>
+                      {detail.customFields.length ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {detail.customFields.map((field) => (
+                            <div key={field.fieldId} className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                <span>{field.name}</span>
+                                <span className="text-[11px] font-normal uppercase tracking-[0.14em] text-muted-foreground">
+                                  {field.type === "TEXT"
+                                    ? "Texto"
+                                    : field.type === "NUMBER"
+                                      ? "Número"
+                                      : "Selección"}
+                                </span>
+                                <FieldEditorBadge field={`customField:${field.fieldId}`} />
+                              </Label>
+                              {field.type === "SELECT" ? (
+                                <Select
+                                  value={customFieldDrafts[field.fieldId] || "__empty__"}
+                                  onValueChange={(value) =>
+                                    setCustomFieldDrafts((current) => ({
+                                      ...current,
+                                      [field.fieldId]: value === "__empty__" ? "" : value,
+                                    }))
+                                  }
+                                  disabled={!canEdit}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Sin valor" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__empty__">Sin valor</SelectItem>
+                                    {field.options.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Input
+                                  type={field.type === "NUMBER" ? "number" : "text"}
+                                  step={field.type === "NUMBER" ? "0.01" : undefined}
+                                  value={customFieldDrafts[field.fieldId] ?? ""}
+                                  onChange={(event) =>
+                                    setCustomFieldDrafts((current) => ({
+                                      ...current,
+                                      [field.fieldId]: event.target.value,
+                                    }))
+                                  }
+                                  disabled={!canEdit}
+                                  onFocus={() => onActiveFieldChange?.(`customField:${field.fieldId}`)}
+                                  onBlur={() => onActiveFieldChange?.(null)}
+                                  placeholder={
+                                    field.type === "NUMBER" ? "Ej. 1200" : "Sin valor"
+                                  }
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-[24px] border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
+                          Este tablero todavía no tiene campos personalizados.
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-3">

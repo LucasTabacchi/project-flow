@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CARD_PRIORITIES, CARD_STATUSES } from "@/lib/constants";
+import { updateCardCustomFieldsSchema } from "@/lib/validators/custom-fields";
 
 const entityIdSchema = z
   .string()
@@ -56,6 +57,7 @@ export const updateCardSchema = z.object({
     .max(99999, "El tiempo estimado es demasiado grande.")
     .nullable()
     .optional(),
+  customFieldValues: updateCardCustomFieldsSchema.shape.customFieldValues,
   // ─────────────────────────────────────────────────────────────────────────
 });
 

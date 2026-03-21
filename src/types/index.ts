@@ -2,12 +2,14 @@ import {
   BOARD_ROLES,
   CARD_PRIORITIES,
   CARD_STATUSES,
+  CUSTOM_FIELD_TYPES,
   LABEL_COLORS,
 } from "@/lib/constants";
 
 export type BoardRole = (typeof BOARD_ROLES)[number];
 export type CardPriority = (typeof CARD_PRIORITIES)[number];
 export type CardStatus = (typeof CARD_STATUSES)[number];
+export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
 export type LabelColor = (typeof LABEL_COLORS)[number];
 
 export type UserSummary = {
@@ -33,6 +35,26 @@ export type LabelView = {
   color: LabelColor;
 };
 
+export type BoardCustomFieldView = {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options: string[];
+  position: number;
+};
+
+export type CardCustomFieldValueView = {
+  fieldId: string;
+  name: string;
+  type: CustomFieldType;
+  options: string[];
+  position: number;
+  textValue: string | null;
+  numberValue: number | null;
+  optionValue: string | null;
+  displayValue: string | null;
+};
+
 export type CardSummaryView = {
   id: string;
   listId: string;
@@ -51,6 +73,7 @@ export type CardSummaryView = {
   // ── Ronda 1 ──
   estimatedMinutes: number | null;
   trackedMinutes: number;
+  customFields: CardCustomFieldValueView[];
 };
 
 export type BoardListView = {
@@ -98,6 +121,7 @@ export type BoardPageData = {
   role: BoardRole;
   permissions: BoardPermissions;
   labels: LabelView[];
+  customFields: BoardCustomFieldView[];
   members: BoardMemberView[];
   presence: BoardPresenceView[];
   invitations: BoardInvitationView[];
@@ -383,6 +407,7 @@ export type CardDetailView = {
   estimatedMinutes: number | null;
   trackedMinutes: number;
   timeEntries: TimeEntryView[];
+  customFields: CardCustomFieldValueView[];
 };
 
 export type ProfilePageData = {

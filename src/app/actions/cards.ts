@@ -182,6 +182,123 @@ async function validateCardRelations(input: {
   };
 }
 
+type CustomFieldValueInput = {
+  fieldId: string;
+  textValue?: string | null;
+  numberValue?: number | null;
+  optionValue?: string | null;
+};
+
+function isCustomFieldValueEmpty(value: {
+  textValue: string | null;
+  numberValue: number | null;
+  optionValue: string | null;
+}) {
+  return value.textValue == null && value.numberValue == null && value.optionValue == null;
+}
+
+async function validateCardCustomFieldValues(input: {
+  boardId: string;
+  customFieldValues: CustomFieldValueInput[];
+}) {
+  const fieldIds = input.customFieldValues.map((value) => value.fieldId);
+
+  if (new Set(fieldIds).size !== fieldIds.length) {
+    return {
+      ok: false as const,
+      message: "Hay campos personalizados repetidos en la tarjeta.",
+    };
+  }
+
+  if (!fieldIds.length) {
+    return {
+      ok: true as const,
+      values: [] as Array<{
+        fieldId: string;
+        textValue: string | null;
+        numberValue: number | null;
+        optionValue: string | null;
+      }>,
+    };
+  }
+
+  const fields = await prisma.boardCustomField.findMany({
+    where: {
+      boardId: input.boardId,
+      id: {
+        in: fieldIds,
+      },
+    },
+    select: {
+      id: true,
+      type: true,
+      options: true,
+    },
+  });
+
+  if (fields.length !== fieldIds.length) {
+    return {
+      ok: false as const,
+      message: "Hay campos personalizados que no pertenecen a este tablero.",
+    };
+  }
+
+  const valuesByFieldId = new Map(
+    input.customFieldValues.map((value) => [value.fieldId, value]),
+  );
+  const normalizedValues: Array<{
+    fieldId: string;
+    textValue: string | null;
+    numberValue: number | null;
+    optionValue: string | null;
+  }> = [];
+
+  for (const field of fields) {
+    const currentValue = valuesByFieldId.get(field.id)!;
+
+    if (field.type === "NUMBER") {
+      normalizedValues.push({
+        fieldId: field.id,
+        textValue: null,
+        numberValue: currentValue.numberValue ?? null,
+        optionValue: null,
+      });
+      continue;
+    }
+
+    if (field.type === "SELECT") {
+      const optionValue = currentValue.optionValue?.trim() || null;
+
+      if (optionValue && !field.options.includes(optionValue)) {
+        return {
+          ok: false as const,
+          message: "El valor seleccionado ya no es válido para uno de los campos personalizados.",
+        };
+      }
+
+      normalizedValues.push({
+        fieldId: field.id,
+        textValue: null,
+        numberValue: null,
+        optionValue,
+      });
+      continue;
+    }
+
+    normalizedValues.push({
+      fieldId: field.id,
+      textValue: currentValue.textValue?.trim() || null,
+      numberValue: null,
+      optionValue: null,
+    });
+  }
+
+  return {
+    ok: true as const,
+    values: normalizedValues,
+  };
+}
+
 export async function getCardDetailAction(
   boardId: string,
   cardId: string,
@@ -310,6 +427,15 @@ export async function updateCardAction(
     return failure(relationScope.message);
   }
 
+  const customFieldScope = await validateCardCustomFieldValues({
+    boardId: parsed.data.boardId,
+    customFieldValues: parsed.data.customFieldValues,
+  });
+
+  if (!customFieldScope.ok) {
+    return failure(customFieldScope.message);
+  }
+
   // Detect newly assigned users (excluding the actor)
   const previousAssigneeIds = new Set(
     card.assignments?.map((a: { userId: string }) => a.userId) ?? []
@@ -318,37 +444,66 @@ export async function updateCardAction(
     (id) => !previousAssigneeIds.has(id) && id !== user.id,
   );
 
-  await prisma.card.update({
-    where: {
-      id: parsed.data.cardId,
-    },
-    data: {
-      title: parsed.data.title,
-      description: parsed.data.description,
-      priority: parsed.data.priority,
-      status: parsed.data.status,
-      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      completedAt:
-        parsed.data.status === "DONE" ? card.completedAt ?? new Date() : null,
-      estimatedMinutes: parsed.data.estimatedMinutes ?? null,
-      cardLabels: {
-        deleteMany: {},
-        createMany: {
-          data: relationScope.labelIds.map((labelId) => ({
-            labelId,
-          })),
+  await prisma.$transaction([
+    prisma.card.update({
+      where: {
+        id: parsed.data.cardId,
+      },
+      data: {
+        title: parsed.data.title,
+        description: parsed.data.description,
+        priority: parsed.data.priority,
+        status: parsed.data.status,
+        dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+        completedAt:
+          parsed.data.status === "DONE" ? card.completedAt ?? new Date() : null,
+        estimatedMinutes: parsed.data.estimatedMinutes ?? null,
+        cardLabels: {
+          deleteMany: {},
+          createMany: {
+            data: relationScope.labelIds.map((labelId) => ({
+              labelId,
+            })),
+          },
+        },
+        assignments: {
+          deleteMany: {},
+          createMany: {
+            data: relationScope.assigneeIds.map((userId) => ({
+              userId,
+            })),
+          },
         },
       },
-      assignments: {
-        deleteMany: {},
-        createMany: {
-          data: relationScope.assigneeIds.map((userId) => ({
-            userId,
-          })),
-        },
-      },
-    },
-  });
+    }),
+    ...(customFieldScope.values.length
+      ? [
+          prisma.cardCustomFieldValue.deleteMany({
+            where: {
+              cardId: parsed.data.cardId,
+              fieldId: {
+                in: customFieldScope.values.map((value) => value.fieldId),
+              },
+            },
+          }),
+          ...(customFieldScope.values.some((value) => !isCustomFieldValueEmpty(value))
+            ? [
+                prisma.cardCustomFieldValue.createMany({
+                  data: customFieldScope.values
+                    .filter((value) => !isCustomFieldValueEmpty(value))
+                    .map((value) => ({
+                      cardId: parsed.data.cardId,
+                      fieldId: value.fieldId,
+                      textValue: value.textValue,
+                      numberValue: value.numberValue,
+                      optionValue: value.optionValue,
+                    })),
+                }),
+              ]
+            : []),
+        ]
+      : []),
+  ]);
 
   // Log de actividad — detectar qué cambió
   const oldStatus = card.status ?? null;

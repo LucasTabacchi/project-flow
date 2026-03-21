@@ -11,6 +11,7 @@ import {
   Mail,
   RefreshCw,
   Settings2,
+  SlidersHorizontal,
   Tags,
   Trash2,
   TriangleAlert,
@@ -26,6 +27,7 @@ import {
 } from "@/app/actions/boards";
 import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
 import { BoardAutomationsPanel } from "@/components/boards/board-automations-panel";
+import { BoardCustomFieldsPanel } from "@/components/boards/board-custom-fields-panel";
 import { BoardEmailNotificationsPanel } from "@/components/boards/board-email-notifications-panel";
 import { BoardExportMenu } from "@/components/boards/board-export-menu";
 import { RecurringCardsPanel } from "@/components/boards/recurring-cards-panel";
@@ -72,6 +74,7 @@ type BoardHeaderData = Pick<
   | "role"
   | "permissions"
   | "labels"
+  | "customFields"
   | "lists"
   | "members"
   | "presence"
@@ -91,6 +94,7 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [automationsOpen, setAutomationsOpen] = useState(false);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [emailNotificationsOpen, setEmailNotificationsOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -292,9 +296,13 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
               ) : null}
               {board.permissions.canDelete ? (
                 <>
-                  <Button variant="secondary" className="shrink-0" onClick={() => setAutomationsOpen(true)}>
-                    <Bot className="size-4" />
-                    Automatizaciones
+                <Button variant="secondary" className="shrink-0" onClick={() => setAutomationsOpen(true)}>
+                  <Bot className="size-4" />
+                  Automatizaciones
+                </Button>
+                  <Button variant="secondary" className="shrink-0" onClick={() => setCustomFieldsOpen(true)}>
+                    <SlidersHorizontal className="size-4" />
+                    Campos
                   </Button>
                   <Button variant="secondary" className="shrink-0" onClick={() => setEmailNotificationsOpen(true)}>
                     <Mail className="size-4" />
@@ -365,6 +373,10 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
                 <Button variant="secondary" className="shrink-0" onClick={() => setAutomationsOpen(true)}>
                   <Bot className="size-4" />
                   Automatizaciones
+                </Button>
+                <Button variant="secondary" className="shrink-0" onClick={() => setCustomFieldsOpen(true)}>
+                  <SlidersHorizontal className="size-4" />
+                  Campos
                 </Button>
                 <Button variant="secondary" className="shrink-0" onClick={() => setEmailNotificationsOpen(true)}>
                   <Mail className="size-4" />
@@ -671,6 +683,20 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
           </DialogHeader>
           <ScrollArea className="max-h-[65vh]">
             <BoardEmailNotificationsPanel boardId={board.id} />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={customFieldsOpen} onOpenChange={setCustomFieldsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Campos personalizados</DialogTitle>
+            <DialogDescription>
+              Definí los campos propios de este tablero para completarlos en cada tarjeta.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[65vh]">
+            <BoardCustomFieldsPanel boardId={board.id} fields={board.customFields} />
           </ScrollArea>
         </DialogContent>
       </Dialog>

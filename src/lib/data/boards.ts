@@ -9,6 +9,10 @@ import {
 
 import { prisma } from "@/lib/db";
 import {
+  serializeBoardCustomField,
+  serializeCardCustomFieldValue,
+} from "@/lib/custom-fields";
+import {
   canDeleteBoard,
   canEditBoard,
   canManageMembers,
@@ -89,6 +93,20 @@ function serializeCardDependency(input: {
   };
 }
 
+function normalizeBoardSnapshot(board: BoardPageData): BoardPageData {
+  return {
+    ...board,
+    customFields: board.customFields ?? [],
+    lists: board.lists.map((list) => ({
+      ...list,
+      cards: list.cards.map((card) => ({
+        ...card,
+        customFields: card.customFields ?? [],
+      })),
+    })),
+  };
+}
+
 function serializeCardSummary(card: {
   id: string;
   listId: string;
@@ -128,6 +146,18 @@ function serializeCardSummary(card: {
   };
   checklistCompleted?: number;
   checklistTotal?: number;
+  customFieldValues?: Array<{
+    field: {
+      id: string;
+      name: string;
+      type: CardSummaryView["customFields"][number]["type"];
+      options: string[];
+      position: number;
+    };
+    textValue: string | null;
+    numberValue: number | null;
+    optionValue: string | null;
+  }>;
 }): CardSummaryView {
   const checklistItems = card.checklists?.flatMap((checklist) => checklist.items) ?? [];
   const checklistCompleted =
@@ -152,6 +182,9 @@ function serializeCardSummary(card: {
     updatedAt: card.updatedAt.toISOString(),
     estimatedMinutes: card.estimatedMinutes,
     trackedMinutes: card.trackedMinutes,
+    customFields: (card.customFieldValues ?? [])
+      .sort((left, right) => left.field.position - right.field.position)
+      .map((value) => serializeCardCustomFieldValue(value)),
   };
 }
 
@@ -197,7 +230,7 @@ type BoardCardCountRow = {
 };
 
 async function getBoardCardsWithStats(boardId: string) {
-  const [cards, assignments, labels, counts] = await Promise.all([
+  const [cards, assignments, labels, counts, customFieldValues] = await Promise.all([
     prisma.$queryRaw<BoardCardWithChecklistRow[]>(Prisma.sql`
       SELECT
         c.id,
@@ -255,6 +288,28 @@ async function getBoardCardsWithStats(boardId: string) {
       WHERE c."boardId" = ${boardId}
       GROUP BY c.id
     `),
+    prisma.cardCustomFieldValue.findMany({
+      where: {
+        card: {
+          boardId,
+        },
+      },
+      select: {
+        cardId: true,
+        textValue: true,
+        numberValue: true,
+        optionValue: true,
+        field: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            options: true,
+            position: true,
+          },
+        },
+      },
+    }),
   ]);
 
   // Build lookup maps for O(1) assembly
@@ -273,11 +328,19 @@ async function getBoardCardsWithStats(boardId: string) {
   }
 
   const countsByCard = new Map(counts.map((r) => [r.cardId, r]));
+  const customFieldsByCard = new Map<string, typeof customFieldValues>();
+
+  for (const row of customFieldValues) {
+    const list = customFieldsByCard.get(row.cardId) ?? [];
+    list.push(row);
+    customFieldsByCard.set(row.cardId, list);
+  }
 
   return cards.map((card) => {
     const cardAssignments = assignmentsByCard.get(card.id) ?? [];
     const cardLabels = labelsByCard.get(card.id) ?? [];
     const cardCounts = countsByCard.get(card.id);
+    const cardCustomFields = customFieldsByCard.get(card.id) ?? [];
 
     return serializeCardSummary({
       id: card.id,
@@ -302,6 +365,7 @@ async function getBoardCardsWithStats(boardId: string) {
         comments: cardCounts?.commentCount ?? 0,
         attachments: cardCounts?.attachmentCount ?? 0,
       },
+      customFieldValues: cardCustomFields,
     });
   });
 }
@@ -343,6 +407,22 @@ export async function getBoardCardSummary(
           items: {
             select: {
               isCompleted: true,
+            },
+          },
+        },
+      },
+      customFieldValues: {
+        select: {
+          textValue: true,
+          numberValue: true,
+          optionValue: true,
+          field: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              options: true,
+              position: true,
             },
           },
         },
@@ -474,7 +554,7 @@ export async function getBoardPageData(
   if (isRedisConfigured()) {
     const cacheKey = `board_page:${boardId}:${userId}`;
     const cached = await redisGetBoardSnapshot<BoardPageData>(cacheKey);
-    if (cached) return cached;
+    if (cached) return normalizeBoardSnapshot(cached);
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -502,6 +582,18 @@ export async function getBoardPageData(
             theme: true,
             backgroundColor: true,
             updatedAt: true,
+            customFields: {
+              orderBy: {
+                position: "asc",
+              },
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                options: true,
+                position: true,
+              },
+            },
             labels: {
               orderBy: {
                 name: "asc",
@@ -586,6 +678,7 @@ export async function getBoardPageData(
       name: label.name,
       color: label.color,
     })),
+    customFields: board.customFields.map((field) => serializeBoardCustomField(field)),
     members,
     presence,
     invitations: [],
@@ -601,7 +694,7 @@ export async function getBoardPageData(
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  return result;
+  return normalizeBoardSnapshot(result);
 }
 
 export async function getCardDetail(
@@ -622,6 +715,22 @@ export async function getCardDetail(
       },
     },
     include: {
+      board: {
+        select: {
+          customFields: {
+            orderBy: {
+              position: "asc",
+            },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              options: true,
+              position: true,
+            },
+          },
+        },
+      },
       createdBy: {
         select: userSummarySelect,
       },
@@ -723,6 +832,23 @@ export async function getCardDetail(
           user: { select: userSummarySelect },
         },
       },
+      customFieldValues: {
+        select: {
+          fieldId: true,
+          textValue: true,
+          numberValue: true,
+          optionValue: true,
+          field: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              options: true,
+              position: true,
+            },
+          },
+        },
+      },
       // ───────────────────────────────────────────────────────────────────────
     },
   });
@@ -730,6 +856,10 @@ export async function getCardDetail(
   if (!card) {
     return null;
   }
+
+  const customFieldValuesByFieldId = new Map(
+    card.customFieldValues.map((value) => [value.fieldId, value]),
+  );
 
   return {
     id: card.id,
@@ -810,6 +940,16 @@ export async function getCardDetail(
       createdAt: entry.createdAt.toISOString(),
       user: serializeUser(entry.user),
     })),
+    customFields: card.board.customFields.map((field) => {
+      const value = customFieldValuesByFieldId.get(field.id);
+
+      return serializeCardCustomFieldValue({
+        field,
+        textValue: value?.textValue ?? null,
+        numberValue: value?.numberValue ?? null,
+        optionValue: value?.optionValue ?? null,
+      });
+    }),
     // ───────────────────────────────────────────────────────────────────────
   };
 }

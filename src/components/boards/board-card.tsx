@@ -25,6 +25,10 @@ function BoardCardComponent({
   onOpenCard,
   disabled = false,
 }: BoardCardProps) {
+  const visibleCustomFields = (card.customFields ?? [])
+    .filter((field) => field.displayValue)
+    .slice(0, 2);
+
   const {
     attributes,
     listeners,
@@ -83,6 +87,18 @@ function BoardCardComponent({
         <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground leading-relaxed">
           {card.description}
         </p>
+      ) : null}
+
+      {visibleCustomFields.length ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {visibleCustomFields.map((field) => (
+            <Badge key={field.fieldId} variant="secondary" className="max-w-full text-[10px]">
+              <span className="truncate">
+                {field.name}: {field.displayValue}
+              </span>
+            </Badge>
+          ))}
+        </div>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

@@ -1,5 +1,6 @@
 import { isCardOverdue } from "@/lib/utils";
 import type {
+  BoardCustomFieldView,
   BoardListView,
   BoardPageData,
   BoardStats,
@@ -67,6 +68,7 @@ export function summarizeCardDetail(detail: CardDetailView): CardSummaryView {
     updatedAt: detail.updatedAt,
     estimatedMinutes: detail.estimatedMinutes,
     trackedMinutes: detail.trackedMinutes,
+    customFields: detail.customFields,
   };
 }
 
@@ -213,4 +215,14 @@ export function updateBoardTimestamp(
     ...board,
     updatedAt,
   };
+}
+
+export function updateBoardCustomFields(
+  board: BoardPageData,
+  customFields: BoardCustomFieldView[],
+  updatedAt?: string,
+): BoardPageData {
+  return withUpdatedBoard(board, updatedAt, board.lists, {
+    customFields: [...customFields].sort((left, right) => left.position - right.position),
+  });
 }

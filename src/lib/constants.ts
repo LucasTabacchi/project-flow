@@ -7,6 +7,7 @@ export const CARD_STATUSES = [
   "DONE",
   "BLOCKED",
 ] as const;
+export const CUSTOM_FIELD_TYPES = ["TEXT", "NUMBER", "SELECT"] as const;
 export const LABEL_COLORS = [
   "SLATE",
   "SKY",

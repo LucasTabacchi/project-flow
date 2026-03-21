@@ -83,6 +83,12 @@ enum BoardAutomationTriggerType {
   CARD_STATUS_CHANGED
 }
 
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  SELECT
+}
+
 model User {
   id                      String            @id @default(cuid())
   name                    String
@@ -146,6 +152,7 @@ model Board {
   emailNotificationJobs BoardEmailNotificationJob[]
   cardDependencies CardDependency[]
   automationRules BoardAutomationRule[]
+  customFields    BoardCustomField[]
   recurringCards  RecurringCard[]
 
   @@index([ownerId])
@@ -230,6 +237,7 @@ model Card {
   attachments       Attachment[]
   presences         BoardPresence[]
   timeEntries       TimeEntry[]
+  customFieldValues CardCustomFieldValue[]
   blocking          CardDependency[] @relation("CardBlocks")
   blockedBy         CardDependency[] @relation("CardBlockedBy")
   recurringSourceId String?        // FK to RecurringCard if spawned
@@ -238,6 +246,38 @@ model Card {
   @@index([boardId, dueDate])
   @@index([boardId, status])
   @@index([listId, position])
+}
+
+model BoardCustomField {
+  id        String          @id @default(cuid())
+  boardId    String
+  name      String
+  type      CustomFieldType
+  options   String[]        @default([])
+  position  Int
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  board     Board           @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  values    CardCustomFieldValue[]
+
+  @@index([boardId, position])
+}
+
+model CardCustomFieldValue {
+  id          String           @id @default(cuid())
+  cardId      String
+  fieldId     String
+  textValue   String?
+  numberValue Float?
+  optionValue String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  card        Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  field       BoardCustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, fieldId])
+  @@index([cardId])
+  @@index([fieldId])
 }
 
 model CardDependency {

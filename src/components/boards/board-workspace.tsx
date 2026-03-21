@@ -376,6 +376,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
       role: currentBoard.role,
       permissions: currentBoard.permissions,
       labels: currentBoard.labels,
+      customFields: currentBoard.customFields ?? [],
       lists: currentBoard.lists,
       members: currentBoard.members,
       presence: currentBoard.presence,
@@ -383,6 +384,7 @@ export function BoardWorkspace({ board }: BoardWorkspaceProps) {
     }),
     [
       currentBoard.description,
+      currentBoard.customFields,
       currentBoard.id,
       currentBoard.labels,
       currentBoard.lists,
