@@ -1498,24 +1498,6 @@ export function CardDetailDialog({
                   />
 
                   <div className="rounded-[28px] border border-border bg-background/70 p-4">
-                    <p className="text-sm font-semibold">Responsables</p>
-                    <div className="mt-3 space-y-2">
-                      {detail.assignees.length ? (
-                        detail.assignees.map((a) => (
-                          <div key={a.userId} className="rounded-2xl border border-border px-3 py-2 text-sm">
-                            <p className="font-medium">{a.name}</p>
-                            <p className="text-xs text-muted-foreground">{a.email}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Todavía no hay responsables asignados.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[28px] border border-border bg-background/70 p-4">
                     <p className="text-sm font-semibold">Viendo esta tarjeta</p>
                     <div className="mt-3 space-y-2">
                       {activeViewers.length ? (
