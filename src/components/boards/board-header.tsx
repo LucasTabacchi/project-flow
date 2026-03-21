@@ -226,20 +226,24 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
   return (
     <>
       <section className="glass-panel overflow-hidden rounded-[32px] border border-border">
-
-        {/* Banner gradiente — sin botones, solo visual */}
-        <div className={`h-32 bg-gradient-to-r sm:h-40 ${themeConfig.gradientClass}`} />
-
-        {/* Área inferior */}
-        <div className="-mt-8 space-y-5 px-4 pb-4 sm:-mt-10 sm:px-6 sm:pb-6">
-
-          <Badge className={themeConfig.chipClass}>{getRoleLabel(board.role)}</Badge>
-
-          {/* Título + acciones */}
-          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
-            <h2 className="min-w-0 font-display text-[clamp(2rem,5vw,3rem)] font-semibold leading-tight">
+        <div className={`relative overflow-hidden bg-gradient-to-r ${themeConfig.gradientClass}`}>
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
+          <div className="relative flex min-h-[12rem] flex-col justify-end gap-3 px-4 pb-5 pt-16 sm:min-h-[15rem] sm:px-6 sm:pb-7 sm:pt-20">
+            <Badge className={`${themeConfig.chipClass} w-fit border border-white/10 shadow-sm backdrop-blur-sm`}>
+              {getRoleLabel(board.role)}
+            </Badge>
+            <h2 className="max-w-5xl min-w-0 font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-[0.95] tracking-tight text-foreground">
               {board.name}
             </h2>
+          </div>
+        </div>
+
+        {/* Área inferior */}
+        <div className="space-y-5 px-4 pb-4 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+            <p className="max-w-3xl text-muted-foreground">
+              {board.description || "Este tablero todavía no tiene descripción."}
+            </p>
             <div className="hidden flex-wrap items-center gap-2 pt-1 sm:flex 2xl:max-w-[62%] 2xl:justify-end">
               {board.permissions.canManageMembers ? (
                 <InviteMemberDialog boardId={board.id} />
@@ -306,10 +310,6 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
               ) : null}
             </div>
           </div>
-
-          <p className="mt-2 max-w-3xl text-muted-foreground">
-            {board.description || "Este tablero todavía no tiene descripción."}
-          </p>
 
           {/* Botones mobile */}
           <div className="flex flex-wrap gap-2 sm:hidden">

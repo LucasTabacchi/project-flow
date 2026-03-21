@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { createNotification } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
 import { ActivityType } from "@prisma/client";
+import { fireBoardWebhooks } from "@/app/actions/webhooks";
 
 import {
   failure,
@@ -454,6 +455,11 @@ export async function createListAction(
     type: ActivityType.LIST_CREATED,
     summary: `creó la lista "${parsed.data.name}"`,
     meta: { listName: parsed.data.name },
+  });
+  fireBoardWebhooks(parsed.data.boardId, "list.created", {
+    listId: list.id,
+    listName: list.name,
+    createdBy: user.name,
   });
 
   return success(
@@ -911,6 +917,13 @@ export async function acceptInvitationAction(
       type: ActivityType.MEMBER_JOINED,
       summary: `se unió al tablero`,
     });
+    fireBoardWebhooks(invitation.boardId, "member.joined", {
+      memberUserId: user.id,
+      memberName: user.name,
+      memberEmail: user.email,
+      role: invitation.role,
+      joinedBy: user.name,
+    });
 
     // Notificar al owner que alguien aceptó
     createNotification({
@@ -919,13 +932,6 @@ export async function acceptInvitationAction(
       actorName: user.name,
       boardName: invitation.board.name,
       boardId: invitation.boardId,
-    });
-
-    logActivity({
-      boardId: invitation.boardId,
-      userId: user.id,
-      type: ActivityType.MEMBER_JOINED,
-      summary: `se unió al tablero`,
     });
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");
@@ -1041,6 +1047,13 @@ export async function acceptInvitationByTokenAction(
       userId: user.id,
       type: ActivityType.MEMBER_JOINED,
       summary: `se unió al tablero`,
+    });
+    fireBoardWebhooks(invitation.boardId, "member.joined", {
+      memberUserId: user.id,
+      memberName: user.name,
+      memberEmail: user.email,
+      role: invitation.role,
+      joinedBy: user.name,
     });
 
     return success({ boardId: invitation.boardId }, "Invitación aceptada.");

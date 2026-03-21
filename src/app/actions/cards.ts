@@ -396,12 +396,26 @@ export async function updateCardAction(
   }
 
   if (newlyAssignedIds.length) {
+    const newAssignees = detail.assignees
+      .filter((assignee) => newlyAssignedIds.includes(assignee.userId))
+      .map((assignee) => ({
+        userId: assignee.userId,
+        name: assignee.name,
+        email: assignee.email,
+      }));
+
     logActivity({
       boardId: parsed.data.boardId,
       userId: user.id,
       type: ActivityType.CARD_ASSIGNED,
       summary: `asignó miembros a "${detail.title}"`,
       meta: { cardId: detail.id, cardTitle: detail.title },
+    });
+    fireBoardWebhooks(parsed.data.boardId, "card.assigned", {
+      cardId: detail.id,
+      cardTitle: detail.title,
+      assignedBy: user.name,
+      assignees: newAssignees,
     });
   }
 
@@ -630,23 +644,6 @@ export async function addCommentAction(
     return failure("El comentario se guardó pero no pudimos cargar la tarjeta actualizada.");
   }
 
-  // Notificar a asignados en la tarjeta (excepto al autor del comentario)
-  const assigneesToNotify = card.assignments
-    .map((a) => a.userId)
-    .filter((id) => id !== user.id);
-
-  if (assigneesToNotify.length) {
-    createNotifications(
-      assigneesToNotify.map((userId) => ({
-        type: "CARD_COMMENT" as const,
-        userId,
-        actorName: user.name,
-        cardTitle: detail.title,
-        boardId: parsed.data.boardId,
-      })),
-    );
-  }
-
   // Detectar menciones @nombre en el cuerpo del comentario
   const mentionMatches = parsed.data.body.match(/@[\w\u00C0-\u024F]+/g) ?? [];
   if (mentionMatches.length) {
@@ -664,8 +661,7 @@ export async function addCommentAction(
         );
       })
       .map((m) => m.userId)
-      // No notificar al autor ni a quienes ya recibieron CARD_COMMENT
-      .filter((id) => id !== user.id && !assigneesToNotify.includes(id));
+      .filter((id) => id !== user.id);
 
     if (mentionedUserIds.length) {
       createNotifications(
