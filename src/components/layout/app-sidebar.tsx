@@ -85,7 +85,7 @@ function SidebarLogo() {
     <Link
       href="/dashboard"
       prefetch={false}
-      className="mb-7 flex items-center gap-3 group"
+      className="mb-6 flex items-center gap-3 group"
     >
       <div className="relative flex size-10 items-center justify-center">
         <div className="absolute inset-0 brand-gradient rounded-[14px] opacity-90 group-hover:opacity-100 transition-opacity shadow-md" />
@@ -109,7 +109,7 @@ function UserCard({
   user: { name: string; email: string; avatarUrl: string | null };
 }) {
   return (
-    <div className="mb-5 flex items-center gap-3 rounded-2xl border border-border/60 bg-secondary/40 px-3 py-2.5">
+    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border/60 bg-secondary/40 px-3 py-2.5">
       <UserAvatar name={user.name} src={user.avatarUrl} className="size-8 shrink-0" />
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold leading-snug">{user.name}</p>
@@ -133,7 +133,7 @@ function AppSidebarSkeleton({
       <div className="sticky top-0 flex h-screen min-h-0 flex-col overflow-hidden px-4 py-5 2xl:px-5 2xl:py-6">
         <SidebarLogo />
         <UserCard user={user} />
-        <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Navegación
         </p>
         <nav className="space-y-0.5">
@@ -165,7 +165,7 @@ function AppSidebarComponent({ user }: AppSidebarProps) {
         <SidebarLogo />
         <UserCard user={user} />
 
-        <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Navegación
         </p>
         <nav className="space-y-0.5">
