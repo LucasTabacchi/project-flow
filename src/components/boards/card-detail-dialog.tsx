@@ -666,6 +666,42 @@ export function CardDetailDialog({
     );
   }
 
+  function CardPresencePanel({
+    className,
+  }: {
+    className?: string;
+  }) {
+    return (
+      <div className={cn("rounded-[28px] border border-border bg-background/70 p-4", className)}>
+        <p className="text-sm font-semibold">Viendo esta tarjeta</p>
+        <div className="mt-3 space-y-2">
+          {activeViewers.length ? (
+            activeViewers.map((viewer) => (
+              <div
+                key={viewer.userId}
+                className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm"
+              >
+                <UserAvatar name={viewer.name} src={viewer.avatarUrl} className="size-9" />
+                <div className="min-w-0">
+                  <p className="font-medium">{viewer.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {viewer.sessionCount > 1
+                      ? `${viewer.sessionCount} sesiones abiertas`
+                      : "Online en esta tarjeta"}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No hay presencia activa en esta tarjeta.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     if (!open || !cardId) return;
     let cancelled = false;
@@ -854,7 +890,7 @@ export function CardDetailDialog({
         <div className="grid h-full min-h-0 grid-cols-1 lg:min-h-[72vh] lg:grid-cols-[1.05fr_0.95fr]">
 
           {/* ── Left panel ─────────────────────────────────────────────────── */}
-          <div className="border-b border-border/60 p-4 sm:p-6 lg:border-r lg:border-b-0">
+          <div className="p-4 sm:p-6 lg:border-r lg:border-border/60">
             <DialogHeader>
               <DialogTitle className="text-xl sm:text-2xl">
                 {detail?.title || "Detalle de tarjeta"}
@@ -1103,6 +1139,28 @@ export function CardDetailDialog({
                         </Button>
                       ) : null}
                     </div>
+
+                    <CardDependenciesPanel
+                      boardId={boardId}
+                      detail={detail}
+                      canEdit={canEdit}
+                      onDetailUpdate={handleDependencyUpdate}
+                      className="lg:hidden"
+                    />
+
+                    <CardPresencePanel className="lg:hidden" />
+
+                    {canEdit ? (
+                      <Button
+                        variant="destructive"
+                        className="w-full lg:hidden"
+                        disabled={isPending}
+                        onClick={handleDeleteCard}
+                      >
+                        <Trash2 className="size-4" />
+                        Eliminar tarjeta
+                      </Button>
+                    ) : null}
                   </TabsContent>
 
                   {/* ── Checklists ─────────────────────────────────────── */}
@@ -1498,7 +1556,7 @@ export function CardDetailDialog({
           </div>
 
           {/* ── Right panel ────────────────────────────────────────────────── */}
-          <aside className="min-h-0 overflow-hidden bg-card/70 p-4 sm:p-6">
+          <aside className="hidden min-h-0 overflow-hidden bg-card/70 p-4 sm:p-6 lg:block">
             {detail ? (
               <ScrollArea
                 type="always"
@@ -1514,33 +1572,7 @@ export function CardDetailDialog({
                     onDetailUpdate={handleDependencyUpdate}
                   />
 
-                  <div className="rounded-[28px] border border-border bg-background/70 p-4">
-                    <p className="text-sm font-semibold">Viendo esta tarjeta</p>
-                    <div className="mt-3 space-y-2">
-                      {activeViewers.length ? (
-                        activeViewers.map((viewer) => (
-                          <div
-                            key={viewer.userId}
-                            className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm"
-                          >
-                            <UserAvatar name={viewer.name} src={viewer.avatarUrl} className="size-9" />
-                            <div className="min-w-0">
-                              <p className="font-medium">{viewer.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {viewer.sessionCount > 1
-                                  ? `${viewer.sessionCount} sesiones abiertas`
-                                  : "Online en esta tarjeta"}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No hay presencia activa en esta tarjeta.
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  <CardPresencePanel />
 
                   {canEdit ? (
                     <Button

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getPriorityLabel, getStatusLabel } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { CardDetailView } from "@/types";
 
@@ -39,6 +40,7 @@ type CardDependenciesPanelProps = {
   detail: CardDetailView;
   canEdit: boolean;
   onDetailUpdate: (detail: CardDetailView, boardUpdatedAt: string) => void;
+  className?: string;
 };
 
 type DependencyListItemProps = {
@@ -102,6 +104,7 @@ export function CardDependenciesPanel({
   detail,
   canEdit,
   onDetailUpdate,
+  className,
 }: CardDependenciesPanelProps) {
   const board = useBoardStore((state) => state.board);
   const [isPending, startTransition] = useTransition();
@@ -198,7 +201,7 @@ export function CardDependenciesPanel({
   }
 
   return (
-    <div className="rounded-[28px] border border-border bg-background/70 p-4">
+    <div className={cn("rounded-[28px] border border-border bg-background/70 p-4", className)}>
       <div className="flex items-start gap-3">
         <div className="rounded-2xl bg-primary/10 p-2 text-primary">
           <GitBranch className="size-4" />

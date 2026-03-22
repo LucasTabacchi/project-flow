@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useRef, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   BookTemplate,
@@ -25,12 +26,7 @@ import {
   leaveBoardAction,
   updateBoardAction,
 } from "@/app/actions/boards";
-import { BoardActivityPanel } from "@/components/boards/board-activity-panel";
-import { BoardAutomationsPanel } from "@/components/boards/board-automations-panel";
-import { BoardCustomFieldsPanel } from "@/components/boards/board-custom-fields-panel";
-import { BoardEmailNotificationsPanel } from "@/components/boards/board-email-notifications-panel";
 import { BoardExportMenu } from "@/components/boards/board-export-menu";
-import { RecurringCardsPanel } from "@/components/boards/recurring-cards-panel";
 import { saveAsBoardTemplateAction } from "@/app/actions/templates";
 import { InviteMemberDialog } from "@/components/boards/invite-member-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +80,56 @@ type BoardHeaderData = Pick<
 type BoardHeaderProps = {
   board: BoardHeaderData;
 };
+
+const BoardActivityPanel = dynamic(
+  () =>
+    import("@/components/boards/board-activity-panel").then((module) => ({
+      default: module.BoardActivityPanel,
+    })),
+  {
+    loading: () => null,
+  },
+);
+
+const BoardAutomationsPanel = dynamic(
+  () =>
+    import("@/components/boards/board-automations-panel").then((module) => ({
+      default: module.BoardAutomationsPanel,
+    })),
+  {
+    loading: () => null,
+  },
+);
+
+const BoardCustomFieldsPanel = dynamic(
+  () =>
+    import("@/components/boards/board-custom-fields-panel").then((module) => ({
+      default: module.BoardCustomFieldsPanel,
+    })),
+  {
+    loading: () => null,
+  },
+);
+
+const BoardEmailNotificationsPanel = dynamic(
+  () =>
+    import("@/components/boards/board-email-notifications-panel").then((module) => ({
+      default: module.BoardEmailNotificationsPanel,
+    })),
+  {
+    loading: () => null,
+  },
+);
+
+const RecurringCardsPanel = dynamic(
+  () =>
+    import("@/components/boards/recurring-cards-panel").then((module) => ({
+      default: module.RecurringCardsPanel,
+    })),
+  {
+    loading: () => null,
+  },
+);
 
 function BoardHeaderComponent({ board }: BoardHeaderProps) {
   const router = useRouter();
@@ -649,75 +695,85 @@ function BoardHeaderComponent({ board }: BoardHeaderProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <BoardActivityPanel
-        boardId={board.id}
-        open={activityOpen}
-        onClose={() => setActivityOpen(false)}
-      />
+      {activityOpen ? (
+        <BoardActivityPanel
+          boardId={board.id}
+          open={activityOpen}
+          onClose={() => setActivityOpen(false)}
+        />
+      ) : null}
 
       <Dialog open={automationsOpen} onOpenChange={setAutomationsOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Automatizaciones</DialogTitle>
-            <DialogDescription>
-              Reglas del tablero que reaccionan cuando una tarjeta cambia de estado.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[70vh]">
-            <BoardAutomationsPanel
-              boardId={board.id}
-              lists={board.lists ?? []}
-              members={board.members}
-            />
-          </ScrollArea>
-        </DialogContent>
+        {automationsOpen ? (
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Automatizaciones</DialogTitle>
+              <DialogDescription>
+                Reglas del tablero que reaccionan cuando una tarjeta cambia de estado.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[70vh]">
+              <BoardAutomationsPanel
+                boardId={board.id}
+                lists={board.lists ?? []}
+                members={board.members}
+              />
+            </ScrollArea>
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog open={emailNotificationsOpen} onOpenChange={setEmailNotificationsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Notificaciones por email</DialogTitle>
-            <DialogDescription>
-              Configurá alertas internas del tablero con destinatarios propios y cola de envío persistida.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[65vh]">
-            <BoardEmailNotificationsPanel boardId={board.id} />
-          </ScrollArea>
-        </DialogContent>
+        {emailNotificationsOpen ? (
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Notificaciones por email</DialogTitle>
+              <DialogDescription>
+                Configurá alertas internas del tablero con destinatarios propios y cola de envío persistida.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[65vh]">
+              <BoardEmailNotificationsPanel boardId={board.id} />
+            </ScrollArea>
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <Dialog open={customFieldsOpen} onOpenChange={setCustomFieldsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Campos personalizados</DialogTitle>
-            <DialogDescription>
-              Definí los campos propios de este tablero para completarlos en cada tarjeta.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[65vh]">
-            <BoardCustomFieldsPanel boardId={board.id} fields={board.customFields} />
-          </ScrollArea>
-        </DialogContent>
+        {customFieldsOpen ? (
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Campos personalizados</DialogTitle>
+              <DialogDescription>
+                Definí los campos propios de este tablero para completarlos en cada tarjeta.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[65vh]">
+              <BoardCustomFieldsPanel boardId={board.id} fields={board.customFields} />
+            </ScrollArea>
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       {/* Recurring cards dialog */}
       <Dialog open={recurringOpen} onOpenChange={setRecurringOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Tarjetas recurrentes</DialogTitle>
-            <DialogDescription>
-              Configurá tarjetas que se crean automáticamente con una frecuencia definida.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[65vh]">
-            <RecurringCardsPanel
-              boardId={board.id}
-              lists={board.lists ?? []}
-              canEdit={board.permissions.canEdit}
-            />
-          </ScrollArea>
-        </DialogContent>
+        {recurringOpen ? (
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Tarjetas recurrentes</DialogTitle>
+              <DialogDescription>
+                Configurá tarjetas que se crean automáticamente con una frecuencia definida.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[65vh]">
+              <RecurringCardsPanel
+                boardId={board.id}
+                lists={board.lists ?? []}
+                canEdit={board.permissions.canEdit}
+              />
+            </ScrollArea>
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       {/* Save as template dialog */}

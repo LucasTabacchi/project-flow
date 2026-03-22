@@ -557,86 +557,82 @@ export async function getBoardPageData(
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ─── MEJORA 1 aplicada: membership+presence+cards con stats en paralelo ───
-  // Antes: membership+presence en Promise.all, luego getBoardChecklistStats
-  // secuencial = 3 roundtrips al DB.
-  // Ahora: membership+presence+getBoardCardsWithStats en Promise.all = 2
-  // roundtrips (getBoardCardsWithStats internamente hace 4 queries en
-  // Promise.all sobre el boardId una vez que lo tenemos).
-  const [membership, presence] = await Promise.all([
-    prisma.boardMember.findUnique({
-      where: {
-        boardId_userId: {
-          boardId,
-          userId,
-        },
+  // Arrancamos todo el trabajo independiente juntos para bajar el TTFB.
+  const membershipPromise = prisma.boardMember.findUnique({
+    where: {
+      boardId_userId: {
+        boardId,
+        userId,
       },
-      select: {
-        role: true,
-        board: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            theme: true,
-            backgroundColor: true,
-            updatedAt: true,
-            customFields: {
-              orderBy: {
-                position: "asc",
-              },
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                options: true,
-                position: true,
+    },
+    select: {
+      role: true,
+      board: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          theme: true,
+          backgroundColor: true,
+          updatedAt: true,
+          customFields: {
+            orderBy: {
+              position: "asc",
+            },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              options: true,
+              position: true,
+            },
+          },
+          labels: {
+            orderBy: {
+              name: "asc",
+            },
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+          members: {
+            orderBy: {
+              createdAt: "asc",
+            },
+            select: {
+              role: true,
+              user: {
+                select: userSummarySelect,
               },
             },
-            labels: {
-              orderBy: {
-                name: "asc",
-              },
-              select: {
-                id: true,
-                name: true,
-                color: true,
-              },
+          },
+          lists: {
+            orderBy: {
+              position: "asc",
             },
-            members: {
-              orderBy: {
-                createdAt: "asc",
-              },
-              select: {
-                role: true,
-                user: {
-                  select: userSummarySelect,
-                },
-              },
-            },
-            lists: {
-              orderBy: {
-                position: "asc",
-              },
-              select: {
-                id: true,
-                name: true,
-                position: true,
-              },
+            select: {
+              id: true,
+              name: true,
+              position: true,
             },
           },
         },
       },
-    }),
-    getBoardPresence(boardId),
+    },
+  });
+  const presencePromise = getBoardPresence(boardId);
+  const cardsPromise = getBoardCardsWithStats(boardId);
+  const [membership, presence, allCards] = await Promise.all([
+    membershipPromise,
+    presencePromise,
+    cardsPromise,
   ]);
 
   if (!membership?.board) {
     return null;
   }
-
-  // Now fetch all cards with stats in a single optimized call
-  const allCards = await getBoardCardsWithStats(boardId);
 
   const role = membership.role as BoardRole;
   const board = membership.board;
