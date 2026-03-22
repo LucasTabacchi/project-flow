@@ -439,21 +439,15 @@ async function DashboardSections({
         className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.92fr)]"
       >
         <div className="min-w-0 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="text-left">
-              <Badge variant="secondary" className="mb-3 w-fit">
-                Tableros
-              </Badge>
-              <h3 className="font-display text-2xl font-semibold">
-                Espacios listos para retomar
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Entradas directas a tus flujos propios o compartidos.
-              </p>
-            </div>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              El grid ahora funciona como mapa operativo: progreso, carga y
-              riesgo quedan visibles antes de abrir cada tablero.
+          <div className="text-left">
+            <Badge variant="secondary" className="mb-3 w-fit">
+              Tableros
+            </Badge>
+            <h3 className="font-display text-2xl font-semibold">
+              Espacios listos para retomar
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Entradas directas a tus flujos propios o compartidos.
             </p>
           </div>
 
