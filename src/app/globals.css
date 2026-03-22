@@ -183,6 +183,54 @@ h4 {
   border-radius: 999px;
 }
 
+@media (max-width: 48rem), (pointer: coarse) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--foreground) 24%, transparent)
+      color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--foreground) 24%, transparent);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  .kanban-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--primary) 40%, transparent)
+      color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  .kanban-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .kanban-scrollbar::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    border-radius: 999px;
+  }
+
+  .kanban-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--primary) 40%, transparent);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+}
+
 .text-balance {
   text-wrap: balance;
 }
@@ -250,4 +298,3 @@ h4 {
   pointer-events: none;
   z-index: 1;
 }
-

@@ -25,6 +25,14 @@ export const metadata: Metadata = {
   },
   description:
     "Gestión visual de proyectos con tableros, listas, tarjetas, calendario, colaboración y permisos por rol.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -67,6 +67,7 @@ import {
   LABEL_COLOR_STYLES,
 } from "@/lib/constants";
 import {
+  cn,
   formatFullDate,
   formatRelativeDistance,
   getPriorityLabel,
@@ -610,6 +611,61 @@ export function CardDetailDialog({
     );
   }
 
+  function CardMetadataPanel({
+    detail,
+    className,
+  }: {
+    detail: CardDetailView;
+    className?: string;
+  }) {
+    return (
+      <div className={cn("rounded-[28px] border border-border bg-background/70 p-4", className)}>
+        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          Metadatos
+        </p>
+        <div className="mt-4 space-y-3 text-sm">
+          <div>
+            <p className="text-muted-foreground">Creada por</p>
+            <p className="font-medium">{detail.createdBy.name}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Creación</p>
+            <p className="font-medium">{formatFullDate(detail.createdAt)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Última actualización</p>
+            <p className="font-medium">{formatRelativeDistance(detail.updatedAt)}</p>
+          </div>
+          {(detail.estimatedMinutes || detail.trackedMinutes > 0) && (
+            <div className="border-t border-border/60 pt-2">
+              <p className="text-muted-foreground">Tiempo</p>
+              <p className="font-medium tabular-nums">
+                {formatMinutes(detail.trackedMinutes)}
+                {detail.estimatedMinutes
+                  ? ` / ${formatMinutes(detail.estimatedMinutes)}`
+                  : ""}
+              </p>
+              {detail.estimatedMinutes ? (
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className={`h-full rounded-full ${
+                      timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
+                        ? "bg-destructive"
+                        : "bg-primary"
+                    }`}
+                    style={{
+                      width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%`,
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     if (!open || !cardId) return;
     let cancelled = false;
@@ -834,6 +890,8 @@ export function CardDetailDialog({
 
                   {/* ── Overview ──────────────────────────────────────────── */}
                   <TabsContent value="overview" className="space-y-5 pr-2">
+                    <CardMetadataPanel detail={detail} className="lg:hidden" />
+
                     <div className="space-y-2">
                       <Label className="flex items-center">
                         Título <FieldEditorBadge field="title" />
@@ -1447,48 +1505,7 @@ export function CardDetailDialog({
                 className="h-[42vh] pr-2 sm:h-[48vh] sm:pr-4 lg:h-[calc(92vh-2rem)]"
               >
                 <div className="space-y-5 pb-4">
-                  <div className="rounded-[28px] border border-border bg-background/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      Metadatos
-                    </p>
-                    <div className="mt-4 space-y-3 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Creada por</p>
-                        <p className="font-medium">{detail.createdBy.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Creación</p>
-                        <p className="font-medium">{formatFullDate(detail.createdAt)}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Última actualización</p>
-                        <p className="font-medium">{formatRelativeDistance(detail.updatedAt)}</p>
-                      </div>
-                      {(detail.estimatedMinutes || detail.trackedMinutes > 0) && (
-                        <div className="border-t border-border/60 pt-2">
-                          <p className="text-muted-foreground">Tiempo</p>
-                          <p className="font-medium tabular-nums">
-                            {formatMinutes(detail.trackedMinutes)}
-                            {detail.estimatedMinutes
-                              ? ` / ${formatMinutes(detail.estimatedMinutes)}`
-                              : ""}
-                          </p>
-                          {detail.estimatedMinutes ? (
-                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                              <div
-                                className={`h-full rounded-full ${
-                                  timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
-                                    ? "bg-destructive"
-                                    : "bg-primary"
-                                }`}
-                                style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <CardMetadataPanel detail={detail} className="hidden lg:block" />
 
                   <CardDependenciesPanel
                     boardId={boardId}
