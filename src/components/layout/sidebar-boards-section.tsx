@@ -37,13 +37,14 @@ export async function SidebarBoardsSection({
                   key={board.id}
                   href={`/boards/${board.id}`}
                   prefetch={false}
-                  className="glass-panel flex items-start gap-3 rounded-[24px] border border-border p-4 transition hover:-translate-y-0.5"
+                  className="glass-panel flex items-center gap-3 rounded-[24px] border border-border p-4 transition hover:-translate-y-0.5"
+                  title={board.name}
                 >
                   <div
-                    className={`mt-1 size-3 rounded-full bg-gradient-to-r ${theme.gradientClass}`}
+                    className={`size-3 shrink-0 rounded-full bg-gradient-to-r ${theme.gradientClass}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="break-all font-medium leading-snug">
+                    <p className="truncate font-medium leading-tight">
                       {board.name}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
