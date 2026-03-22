@@ -15,7 +15,7 @@ export async function SidebarBoardsSection({
   const boards = await getUserSidebarBoards(userId);
 
   return (
-    <div className="mt-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="mt-5 flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Tableros activos</p>
@@ -26,8 +26,8 @@ export async function SidebarBoardsSection({
         <Badge variant="secondary">{boards.length}</Badge>
       </div>
 
-      <ScrollArea type="always" className="mt-3 min-h-0 flex-1">
-        <div className="space-y-2.5 pr-6 pb-3">
+      <ScrollArea type="always" className="mt-2 min-h-0 flex-1">
+        <div className="space-y-2 pr-6 pb-2">
           {boards.length ? (
             boards.map((board) => {
               const theme = getBoardTheme(board.theme);
