@@ -15,7 +15,7 @@ export async function SidebarBoardsSection({
   const boards = await getUserSidebarBoards(userId);
 
   return (
-    <div className="mt-8 flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="mt-6 flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Tableros activos</p>
@@ -26,8 +26,8 @@ export async function SidebarBoardsSection({
         <Badge variant="secondary">{boards.length}</Badge>
       </div>
 
-      <ScrollArea type="always" className="mt-4 min-h-0 flex-1">
-        <div className="space-y-3 pr-4 pb-1">
+      <ScrollArea type="always" className="mt-3 min-h-0 flex-1">
+        <div className="space-y-2.5 pr-6 pb-3">
           {boards.length ? (
             boards.map((board) => {
               const theme = getBoardTheme(board.theme);
@@ -37,17 +37,17 @@ export async function SidebarBoardsSection({
                   key={board.id}
                   href={`/boards/${board.id}`}
                   prefetch={false}
-                  className="glass-panel flex items-center gap-3 rounded-[24px] border border-border p-4 transition hover:-translate-y-0.5"
+                  className="glass-panel flex items-center gap-2.5 rounded-[22px] border border-border px-3.5 py-3 transition hover:-translate-y-0.5"
                   title={board.name}
                 >
                   <div
-                    className={`size-3 shrink-0 rounded-full bg-gradient-to-r ${theme.gradientClass}`}
+                    className={`size-2.5 shrink-0 rounded-full bg-gradient-to-r ${theme.gradientClass}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium leading-tight">
+                    <p className="overflow-hidden text-sm font-medium leading-[1.2] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                       {board.name}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {getRoleLabel(board.role)}
                     </p>
                   </div>
