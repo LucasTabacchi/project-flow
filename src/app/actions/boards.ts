@@ -761,12 +761,11 @@ export async function inviteMemberAction(
       return failure("No encontramos el tablero a invitar.");
     }
 
-    if (
+    const isResend =
       existingInvitation?.status === "PENDING" &&
-      !isInvitationExpired(existingInvitation.expiresAt)
-    ) {
-      return failure("Ya existe una invitación pendiente para ese email.");
-    }
+      !isInvitationExpired(existingInvitation.expiresAt);
+    const successActionLabel = isResend ? "Invitación reenviada" : "Invitación enviada";
+    const createdActionLabel = isResend ? "Invitación reenviada" : "Invitación creada";
 
     const invitationToken = randomUUID();
     const invitation = existingInvitation
@@ -815,7 +814,7 @@ export async function inviteMemberAction(
           },
           boardUpdatedAt: boardUpdatedAt.toISOString(),
         },
-        "Invitación creada. Configurá APP_URL para generar el enlace público y enviarlo por email.",
+        `${createdActionLabel}. Configurá APP_URL para generar el enlace público y enviarlo por email.`,
       );
     }
 
@@ -846,7 +845,7 @@ export async function inviteMemberAction(
           },
           boardUpdatedAt: boardUpdatedAt.toISOString(),
         },
-        emailResult.reason,
+        isResend ? `Invitación reenviada. ${emailResult.reason}` : emailResult.reason,
       );
     }
 
@@ -864,7 +863,7 @@ export async function inviteMemberAction(
         },
         boardUpdatedAt: boardUpdatedAt.toISOString(),
       },
-      "Invitación enviada por email.",
+      `${successActionLabel} por email.`,
     );
   } catch (error) {
     logError("board.invite.failed", {
