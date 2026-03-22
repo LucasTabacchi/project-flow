@@ -29,9 +29,12 @@ import {
   addCommentAction,
   createAttachmentAction,
   deleteCardAction,
+  getCardActivityAction,
+  getCardChecklistsAction,
   deleteTimeEntryAction,
-  getCardDetailAction,
   getCardHistoryAction,
+  getCardOverviewAction,
+  getCardTimeEntriesAction,
   logTimeAction,
   toggleChecklistItemAction,
   updateCardAction,
@@ -414,6 +417,13 @@ export function CardDetailDialog({
   const [history, setHistory] = useState<CardHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const historyLoadedRef = useRef<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [activityReady, setActivityReady] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [checklistsReady, setChecklistsReady] = useState(false);
+  const [checklistsLoading, setChecklistsLoading] = useState(false);
+  const [timeReady, setTimeReady] = useState(false);
+  const [timeLoading, setTimeLoading] = useState(false);
 
   // reactions: commentId → ReactionSummary[]
   const [commentReactions, setCommentReactions] = useState<
@@ -545,6 +555,62 @@ export function CardDetailDialog({
       rxMap[c.id] = c.reactions;
     }
     setCommentReactions(rxMap);
+    setActivityReady(true);
+    setActivityLoading(false);
+    setChecklistsReady(true);
+    setChecklistsLoading(false);
+    setTimeReady(true);
+    setTimeLoading(false);
+  }
+
+  function syncOverview(nextDetail: CardDetailView) {
+    const mergedDetail =
+      detail && detail.id === nextDetail.id
+        ? {
+            ...nextDetail,
+            comments: detail.comments,
+            attachments: detail.attachments,
+            checklists: detail.checklists,
+            timeEntries: detail.timeEntries,
+          }
+        : nextDetail;
+
+    setDetail(mergedDetail);
+    setTitle(nextDetail.title);
+    setDescription(nextDetail.description ?? "");
+    setDueDate(toDateInputValue(nextDetail.dueDate));
+    setPriority(nextDetail.priority);
+    setStatus(nextDetail.status);
+    setSelectedLabels(nextDetail.labels.map((l) => l.id));
+    setSelectedAssignees(nextDetail.assignees.map((a) => a.userId));
+    setEstimatedMinutes(
+      nextDetail.estimatedMinutes != null ? String(nextDetail.estimatedMinutes) : "",
+    );
+    setCustomFieldDrafts(buildCustomFieldDrafts(nextDetail.customFields));
+  }
+
+  function mergeDetailSections(
+    targetCardId: string,
+    nextSections: Partial<
+      Pick<CardDetailView, "comments" | "attachments" | "checklists" | "timeEntries">
+    >,
+  ) {
+    setDetail((currentDetail) =>
+      currentDetail && currentDetail.id === targetCardId
+        ? {
+            ...currentDetail,
+            ...nextSections,
+          }
+        : currentDetail,
+    );
+
+    if (nextSections.comments) {
+      const rxMap: Record<string, CommentReactionView[]> = {};
+      for (const comment of nextSections.comments) {
+        rxMap[comment.id] = comment.reactions;
+      }
+      setCommentReactions(rxMap);
+    }
   }
 
   function resetState() {
@@ -563,16 +629,89 @@ export function CardDetailDialog({
     setTimerStart(null);
     setCommentReactions({});
     setCustomFieldDrafts({});
+    setActiveTab("overview");
+    setActivityReady(false);
+    setActivityLoading(false);
+    setChecklistsReady(false);
+    setChecklistsLoading(false);
+    setTimeReady(false);
+    setTimeLoading(false);
     onActiveFieldChange?.(null);
   }
 
-  const refreshDetail = useCallback(
+  const refreshOverview = useCallback(
     async (currentCardId: string) => {
-      const result = await getCardDetailAction(boardId, currentCardId);
-      if (!result.ok || !result.data) { toast.error(result.message); return null; }
+      const result = await getCardOverviewAction(boardId, currentCardId);
+      if (!result.ok || !result.data) {
+        toast.error(result.message);
+        return null;
+      }
       return result.data;
     },
     [boardId],
+  );
+
+  const loadActivitySection = useCallback(
+    async (currentCardId: string, force = false) => {
+      if ((activityReady && !force) || activityLoading) {
+        return;
+      }
+
+      setActivityLoading(true);
+      const result = await getCardActivityAction(boardId, currentCardId);
+      setActivityLoading(false);
+
+      if (!result.ok || !result.data) {
+        toast.error(result.message);
+        return;
+      }
+
+      mergeDetailSections(currentCardId, result.data);
+      setActivityReady(true);
+    },
+    [activityLoading, activityReady, boardId],
+  );
+
+  const loadChecklistSection = useCallback(
+    async (currentCardId: string, force = false) => {
+      if ((checklistsReady && !force) || checklistsLoading) {
+        return;
+      }
+
+      setChecklistsLoading(true);
+      const result = await getCardChecklistsAction(boardId, currentCardId);
+      setChecklistsLoading(false);
+
+      if (!result.ok || !result.data) {
+        toast.error(result.message);
+        return;
+      }
+
+      mergeDetailSections(currentCardId, result.data);
+      setChecklistsReady(true);
+    },
+    [boardId, checklistsLoading, checklistsReady],
+  );
+
+  const loadTimeSection = useCallback(
+    async (currentCardId: string, force = false) => {
+      if ((timeReady && !force) || timeLoading) {
+        return;
+      }
+
+      setTimeLoading(true);
+      const result = await getCardTimeEntriesAction(boardId, currentCardId);
+      setTimeLoading(false);
+
+      if (!result.ok || !result.data) {
+        toast.error(result.message);
+        return;
+      }
+
+      mergeDetailSections(currentCardId, result.data);
+      setTimeReady(true);
+    },
+    [boardId, timeLoading, timeReady],
   );
 
   const hasUnsavedCardChanges = useMemo(() => {
@@ -706,14 +845,48 @@ export function CardDetailDialog({
     if (!open || !cardId) return;
     let cancelled = false;
     void (async () => {
+      setActiveTab("overview");
+      setActivityReady(false);
+      setActivityLoading(false);
+      setChecklistsReady(false);
+      setChecklistsLoading(false);
+      setTimeReady(false);
+      setTimeLoading(false);
       setLoading(true);
-      const nextDetail = await refreshDetail(cardId);
+      const nextDetail = await refreshOverview(cardId);
       if (cancelled) return;
       setLoading(false);
-      if (nextDetail) syncDetail(nextDetail);
+      if (nextDetail) syncOverview(nextDetail);
     })();
     return () => { cancelled = true; };
-  }, [boardId, cardId, open, refreshDetail]);
+  }, [boardId, cardId, open, refreshOverview]);
+
+  useEffect(() => {
+    if (!open || !cardId) {
+      return;
+    }
+
+    if (activeTab === "activity") {
+      void loadActivitySection(cardId);
+      return;
+    }
+
+    if (activeTab === "checklists") {
+      void loadChecklistSection(cardId);
+      return;
+    }
+
+    if (activeTab === "time") {
+      void loadTimeSection(cardId);
+    }
+  }, [
+    activeTab,
+    cardId,
+    loadActivitySection,
+    loadChecklistSection,
+    loadTimeSection,
+    open,
+  ]);
 
   useEffect(() => {
     if (!open || !cardId) { remoteNoticeRef.current = null; return; }
@@ -731,13 +904,13 @@ export function CardDetailDialog({
     }
     let cancelled = false;
     void (async () => {
-      const nextDetail = await refreshDetail(cardId);
+      const nextDetail = await refreshOverview(cardId);
       if (cancelled || !nextDetail) return;
-      syncDetail(nextDetail);
+      syncOverview(nextDetail);
       remoteNoticeRef.current = null;
     })();
     return () => { cancelled = true; };
-  }, [cardId, cardUpdatedAt, detail, hasUnsavedCardChanges, isPending, onOpenChange, open, refreshDetail]);
+  }, [cardId, cardUpdatedAt, detail, hasUnsavedCardChanges, isPending, onOpenChange, open, refreshOverview]);
 
   function toggleSelection(values: string[], value: string) {
     return values.includes(value)
@@ -907,7 +1080,7 @@ export function CardDetailDialog({
                 <LoaderCircle className="size-8 animate-spin text-primary" />
               </div>
             ) : detail ? (
-              <Tabs defaultValue="overview" className="mt-6">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
                 <TabsList className="h-auto w-full flex-wrap justify-start">
                   <TabsTrigger value="overview">Resumen</TabsTrigger>
                   <TabsTrigger value="checklists">Checklist</TabsTrigger>
@@ -1165,199 +1338,220 @@ export function CardDetailDialog({
 
                   {/* ── Checklists ─────────────────────────────────────── */}
                   <TabsContent value="checklists" className="space-y-5 pr-2">
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Input
-                        value={checklistTitle}
-                        onChange={(e) => setChecklistTitle(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddChecklist(); } }}
-                        placeholder="Nuevo checklist"
-                        disabled={!canEdit}
-                      />
-                      <Button type="button" onClick={handleAddChecklist} disabled={!canEdit || !checklistTitle.trim()}>
-                        <SquareCheckBig className="size-4" />
-                        Agregar
-                      </Button>
-                    </div>
-                    {detail.checklists.map((checklist) => (
-                      <div key={checklist.id} className="rounded-[28px] border border-border bg-background/60 p-4">
-                        <div className="mb-3">
-                          <h4 className="font-display text-lg font-semibold">{checklist.title}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {checklist.items.filter((i) => i.isCompleted).length}/{checklist.items.length} completados
-                          </p>
-                        </div>
-                        <div className="space-y-3">
-                          {checklist.items.map((item) => (
-                            <label key={item.id} className="flex items-start gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3">
-                              <Checkbox
-                                checked={item.isCompleted}
-                                disabled={!canEdit}
-                                onCheckedChange={(checked) => handleToggleChecklist(item.id, Boolean(checked))}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium">{item.title}</p>
-                                {item.completedAt ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    Completado {formatRelativeDistance(item.completedAt)}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    {checklistsLoading && !checklistsReady ? (
+                      <div className="flex items-center justify-center rounded-[28px] border border-border bg-background/60 py-10">
+                        <LoaderCircle className="size-6 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <Input
-                            value={checklistItemDrafts[checklist.id] ?? ""}
-                            onChange={(e) => setChecklistItemDrafts((c) => ({ ...c, [checklist.id]: e.target.value }))}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddChecklistItem(checklist.id); } }}
-                            placeholder="Nuevo item"
+                            value={checklistTitle}
+                            onChange={(e) => setChecklistTitle(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddChecklist(); } }}
+                            placeholder="Nuevo checklist"
                             disabled={!canEdit}
                           />
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={!canEdit || !checklistItemDrafts[checklist.id]?.trim()}
-                            onClick={() => handleAddChecklistItem(checklist.id)}
-                          >
+                          <Button type="button" onClick={handleAddChecklist} disabled={!canEdit || !checklistTitle.trim()}>
+                            <SquareCheckBig className="size-4" />
                             Agregar
                           </Button>
                         </div>
-                      </div>
-                    ))}
+                        {detail.checklists.length === 0 ? (
+                          <div className="rounded-[28px] border border-dashed border-border bg-background/40 px-4 py-8 text-center text-sm text-muted-foreground">
+                            Esta tarjeta todavía no tiene checklists.
+                          </div>
+                        ) : null}
+                        {detail.checklists.map((checklist) => (
+                          <div key={checklist.id} className="rounded-[28px] border border-border bg-background/60 p-4">
+                            <div className="mb-3">
+                              <h4 className="font-display text-lg font-semibold">{checklist.title}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {checklist.items.filter((i) => i.isCompleted).length}/{checklist.items.length} completados
+                              </p>
+                            </div>
+                            <div className="space-y-3">
+                              {checklist.items.map((item) => (
+                                <label key={item.id} className="flex items-start gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3">
+                                  <Checkbox
+                                    checked={item.isCompleted}
+                                    disabled={!canEdit}
+                                    onCheckedChange={(checked) => handleToggleChecklist(item.id, Boolean(checked))}
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium">{item.title}</p>
+                                    {item.completedAt ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Completado {formatRelativeDistance(item.completedAt)}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                              <Input
+                                value={checklistItemDrafts[checklist.id] ?? ""}
+                                onChange={(e) => setChecklistItemDrafts((c) => ({ ...c, [checklist.id]: e.target.value }))}
+                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddChecklistItem(checklist.id); } }}
+                                placeholder="Nuevo item"
+                                disabled={!canEdit}
+                              />
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={!canEdit || !checklistItemDrafts[checklist.id]?.trim()}
+                                onClick={() => handleAddChecklistItem(checklist.id)}
+                              >
+                                Agregar
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </TabsContent>
 
                   {/* ── Activity (adjuntos + comentarios con @menciones) ── */}
                   <TabsContent value="activity" className="space-y-5 pr-2">
-                    {/* Adjuntos */}
-                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
-                      <div className="mb-3 flex items-center gap-2">
-                        <Paperclip className="size-4 text-primary" />
-                        <h4 className="font-display text-lg font-semibold">Adjuntos</h4>
-                        {detail.attachments.length > 0 && (
-                          <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                            {detail.attachments.length}
-                          </span>
-                        )}
+                    {activityLoading && !activityReady ? (
+                      <div className="flex items-center justify-center rounded-[28px] border border-border bg-background/60 py-10">
+                        <LoaderCircle className="size-6 animate-spin text-primary" />
                       </div>
-                      {detail.attachments.length > 0 ? (
-                        <div className="mb-3 space-y-2">
-                          {detail.attachments.map((a) => (
-                            <a
-                              key={a.id}
-                              href={a.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3 text-sm transition hover:bg-card hover:border-primary/20"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate font-medium">{a.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{a.url}</p>
-                              </div>
-                              <svg className="size-3.5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                              </svg>
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mb-3 text-sm text-muted-foreground">Todavía no hay adjuntos en esta tarjeta.</p>
-                      )}
-                      {canEdit ? (
-                        <div className="space-y-2 border-t border-border/60 pt-3">
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <Input
-                              value={attachmentName}
-                              onChange={(e) => setAttachmentName(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddAttachment(); } }}
-                              placeholder="Nombre del adjunto"
-                            />
-                            <div className="space-y-1">
-                              <Input
-                                value={attachmentUrl}
-                                onChange={(e) => { setAttachmentUrl(e.target.value); if (attachmentUrlError) setAttachmentUrlError(""); }}
-                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddAttachment(); } }}
-                                placeholder="https://..."
-                                className={attachmentUrlError ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
-                              />
-                              {attachmentUrlError && <p className="text-xs text-destructive">{attachmentUrlError}</p>}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            className="w-full sm:w-auto"
-                            onClick={handleAddAttachment}
-                            disabled={isAddingAttachment || !attachmentName.trim() || !attachmentUrl.trim()}
-                          >
-                            {isAddingAttachment ? (
-                              <><LoaderCircle className="size-4 animate-spin" /> Agregando...</>
-                            ) : (
-                              <><Paperclip className="size-4" /> Agregar adjunto</>
-                            )}
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {/* Comentarios con @menciones */}
-                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
-                      <h4 className="font-display text-lg font-semibold">Comentarios</h4>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Escribí <span className="font-medium text-foreground">@nombre</span> para mencionar a un miembro del tablero.
-                      </p>
-                      <div className="mt-3 space-y-3">
-                        {detail.comments.map((entry) => (
-                          <div key={entry.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2">
-                                <UserAvatar name={entry.author.name} src={entry.author.avatarUrl} className="size-7" />
-                                <p className="font-medium">{entry.author.name}</p>
-                              </div>
-                              <span className="text-xs text-muted-foreground">
-                                {formatRelativeDistance(entry.createdAt)}
+                    ) : (
+                      <>
+                        {/* Adjuntos */}
+                        <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Paperclip className="size-4 text-primary" />
+                            <h4 className="font-display text-lg font-semibold">Adjuntos</h4>
+                            {detail.attachments.length > 0 && (
+                              <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                                {detail.attachments.length}
                               </span>
-                            </div>
-                            <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                              {entry.body.split(/(@[\w\u00C0-\u024F]+)/g).map((part, i) =>
-                                part.startsWith("@") ? (
-                                  <span key={i} className="rounded px-0.5 font-medium text-primary">{part}</span>
-                                ) : (
-                                  part
-                                ),
-                              )}
-                            </p>
-                            <CommentReactions
-                              boardId={boardId}
-                              commentId={entry.id}
-                              reactions={commentReactions[entry.id] ?? entry.reactions}
-                              onUpdate={(reactions) =>
-                                setCommentReactions((prev) => ({ ...prev, [entry.id]: reactions }))
-                              }
-                              canReact
-                            />
+                            )}
                           </div>
-                        ))}
-                      </div>
-                      {canEdit ? (
-                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                          <MentionTextarea
-                            value={comment}
-                            onChange={setComment}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                                e.preventDefault();
-                                handleAddComment();
-                              }
-                            }}
-                            placeholder="Agregar comentario… (Ctrl+Enter para enviar)"
-                            members={members}
-                            className="min-h-20"
-                          />
-                          <Button type="button" onClick={handleAddComment} disabled={!comment.trim()}>
-                            <Send className="size-4" />
-                          </Button>
+                          {detail.attachments.length > 0 ? (
+                            <div className="mb-3 space-y-2">
+                              {detail.attachments.map((a) => (
+                                <a
+                                  key={a.id}
+                                  href={a.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-3 text-sm transition hover:bg-card hover:border-primary/20"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate font-medium">{a.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{a.url}</p>
+                                  </div>
+                                  <svg className="size-3.5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mb-3 text-sm text-muted-foreground">Todavía no hay adjuntos en esta tarjeta.</p>
+                          )}
+                          {canEdit ? (
+                            <div className="space-y-2 border-t border-border/60 pt-3">
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <Input
+                                  value={attachmentName}
+                                  onChange={(e) => setAttachmentName(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddAttachment(); } }}
+                                  placeholder="Nombre del adjunto"
+                                />
+                                <div className="space-y-1">
+                                  <Input
+                                    value={attachmentUrl}
+                                    onChange={(e) => { setAttachmentUrl(e.target.value); if (attachmentUrlError) setAttachmentUrlError(""); }}
+                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddAttachment(); } }}
+                                    placeholder="https://..."
+                                    className={attachmentUrlError ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
+                                  />
+                                  {attachmentUrlError && <p className="text-xs text-destructive">{attachmentUrlError}</p>}
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                className="w-full sm:w-auto"
+                                onClick={handleAddAttachment}
+                                disabled={isAddingAttachment || !attachmentName.trim() || !attachmentUrl.trim()}
+                              >
+                                {isAddingAttachment ? (
+                                  <><LoaderCircle className="size-4 animate-spin" /> Agregando...</>
+                                ) : (
+                                  <><Paperclip className="size-4" /> Agregar adjunto</>
+                                )}
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                    </div>
+
+                        {/* Comentarios con @menciones */}
+                        <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                          <h4 className="font-display text-lg font-semibold">Comentarios</h4>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Escribí <span className="font-medium text-foreground">@nombre</span> para mencionar a un miembro del tablero.
+                          </p>
+                          <div className="mt-3 space-y-3">
+                            {detail.comments.map((entry) => (
+                              <div key={entry.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <UserAvatar name={entry.author.name} src={entry.author.avatarUrl} className="size-7" />
+                                    <p className="font-medium">{entry.author.name}</p>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatRelativeDistance(entry.createdAt)}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                                  {entry.body.split(/(@[\w\u00C0-\u024F]+)/g).map((part, i) =>
+                                    part.startsWith("@") ? (
+                                      <span key={i} className="rounded px-0.5 font-medium text-primary">{part}</span>
+                                    ) : (
+                                      part
+                                    ),
+                                  )}
+                                </p>
+                                <CommentReactions
+                                  boardId={boardId}
+                                  commentId={entry.id}
+                                  reactions={commentReactions[entry.id] ?? entry.reactions}
+                                  onUpdate={(reactions) =>
+                                    setCommentReactions((prev) => ({ ...prev, [entry.id]: reactions }))
+                                  }
+                                  canReact
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          {canEdit ? (
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                              <MentionTextarea
+                                value={comment}
+                                onChange={setComment}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                    e.preventDefault();
+                                    handleAddComment();
+                                  }
+                                }}
+                                placeholder="Agregar comentario… (Ctrl+Enter para enviar)"
+                                members={members}
+                                className="min-h-20"
+                              />
+                              <Button type="button" onClick={handleAddComment} disabled={!comment.trim()}>
+                                <Send className="size-4" />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
                   </TabsContent>
 
                   {/* ── Historial ──────────────────────────────────────── */}
@@ -1405,149 +1599,157 @@ export function CardDetailDialog({
 
                   {/* ── Tiempo ────────────────────────────────────────── */}
                   <TabsContent value="time" className="space-y-4 pr-2">
-                    {/* Resumen */}
-                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
-                      <div className="mb-3 flex items-center gap-2">
-                        <Clock className="size-4 text-primary" />
-                        <h4 className="font-display text-lg font-semibold">Resumen</h4>
+                    {timeLoading && !timeReady ? (
+                      <div className="flex items-center justify-center rounded-[28px] border border-border bg-background/60 py-10">
+                        <LoaderCircle className="size-6 animate-spin text-primary" />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center">
-                          <p className="text-xs text-muted-foreground">Registrado</p>
-                          <p className="mt-1 text-2xl font-bold tabular-nums">
-                            {formatMinutes(detail.trackedMinutes)}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center">
-                          <p className="text-xs text-muted-foreground">Estimado</p>
-                          <p className="mt-1 text-2xl font-bold tabular-nums">
-                            {detail.estimatedMinutes ? formatMinutes(detail.estimatedMinutes) : "—"}
-                          </p>
-                        </div>
-                      </div>
-                      {detail.estimatedMinutes ? (
-                        <div className="mt-3">
-                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                            <span>Progreso</span>
-                            <span>{timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%</span>
+                    ) : (
+                      <>
+                        {/* Resumen */}
+                        <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Clock className="size-4 text-primary" />
+                            <h4 className="font-display text-lg font-semibold">Resumen</h4>
                           </div>
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
-                                  ? "bg-destructive"
-                                  : "bg-primary"
-                              }`}
-                              style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {/* Timer */}
-                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
-                      <h4 className="mb-3 font-semibold">Timer</h4>
-                      <div className="flex items-center gap-4">
-                        <span className={`font-mono text-3xl tabular-nums ${timerActive ? "text-primary" : "text-muted-foreground"}`}>
-                          {timerDisplay}
-                        </span>
-                        {timerActive ? (
-                          <Button variant="destructive" size="sm" onClick={handleStopTimer} disabled={isLoggingTime}>
-                            <Square className="size-4" />
-                            Detener y guardar
-                          </Button>
-                        ) : (
-                          <Button variant="secondary" size="sm" onClick={handleStartTimer} disabled={!canEdit || isLoggingTime}>
-                            <Play className="size-4" />
-                            Iniciar timer
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Registro manual */}
-                    {canEdit ? (
-                      <div className="rounded-[28px] border border-border bg-background/60 p-4">
-                        <h4 className="mb-3 font-semibold">Registrar manualmente</h4>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Input
-                            type="number"
-                            min={1}
-                            max={1440}
-                            placeholder="Minutos (ej: 90)"
-                            value={manualMinutes}
-                            onChange={(e) => setManualMinutes(e.target.value)}
-                            className="sm:w-36"
-                          />
-                          <Input
-                            placeholder="Nota opcional"
-                            value={manualNote}
-                            onChange={(e) => setManualNote(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleLogManualTime(); } }}
-                          />
-                          <Button type="button" onClick={handleLogManualTime} disabled={isLoggingTime || !manualMinutes}>
-                            {isLoggingTime
-                              ? <LoaderCircle className="size-4 animate-spin" />
-                              : <Clock className="size-4" />}
-                            Registrar
-                          </Button>
-                        </div>
-                        {manualMinutes && !isNaN(parseInt(manualMinutes)) && parseInt(manualMinutes) > 0 && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            = {formatMinutes(parseInt(manualMinutes))}
-                          </p>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {/* Log de entradas */}
-                    <div className="rounded-[28px] border border-border bg-background/60 p-4">
-                      <h4 className="mb-3 font-semibold">
-                        Entradas registradas
-                        {detail.timeEntries.length > 0 && (
-                          <span className="ml-2 text-sm font-normal text-muted-foreground">
-                            ({detail.timeEntries.length})
-                          </span>
-                        )}
-                      </h4>
-                      {detail.timeEntries.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          Todavía no hay tiempo registrado en esta tarjeta.
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {detail.timeEntries.map((entry) => (
-                            <div
-                              key={entry.id}
-                              className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-2.5 text-sm"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <UserAvatar name={entry.user.name} src={entry.user.avatarUrl} className="size-7 shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="font-medium tabular-nums">{formatMinutes(entry.minutes)}</p>
-                                  {entry.note && (
-                                    <p className="truncate text-xs text-muted-foreground">{entry.note}</p>
-                                  )}
-                                  <p className="text-xs text-muted-foreground">
-                                    {entry.user.name} · {formatRelativeDistance(entry.createdAt)}
-                                  </p>
-                                </div>
-                              </div>
-                              {canEdit && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTimeEntry(entry.id)}
-                                  className="shrink-0 rounded-lg p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                                >
-                                  <X className="size-3.5" />
-                                </button>
-                              )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center">
+                              <p className="text-xs text-muted-foreground">Registrado</p>
+                              <p className="mt-1 text-2xl font-bold tabular-nums">
+                                {formatMinutes(detail.trackedMinutes)}
+                              </p>
                             </div>
-                          ))}
+                            <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-center">
+                              <p className="text-xs text-muted-foreground">Estimado</p>
+                              <p className="mt-1 text-2xl font-bold tabular-nums">
+                                {detail.estimatedMinutes ? formatMinutes(detail.estimatedMinutes) : "—"}
+                              </p>
+                            </div>
+                          </div>
+                          {detail.estimatedMinutes ? (
+                            <div className="mt-3">
+                              <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                                <span>Progreso</span>
+                                <span>{timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%</span>
+                              </div>
+                              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    timeProgress(detail.trackedMinutes, detail.estimatedMinutes) >= 100
+                                      ? "bg-destructive"
+                                      : "bg-primary"
+                                  }`}
+                                  style={{ width: `${timeProgress(detail.trackedMinutes, detail.estimatedMinutes)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
-                      )}
-                    </div>
+
+                        {/* Timer */}
+                        <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                          <h4 className="mb-3 font-semibold">Timer</h4>
+                          <div className="flex items-center gap-4">
+                            <span className={`font-mono text-3xl tabular-nums ${timerActive ? "text-primary" : "text-muted-foreground"}`}>
+                              {timerDisplay}
+                            </span>
+                            {timerActive ? (
+                              <Button variant="destructive" size="sm" onClick={handleStopTimer} disabled={isLoggingTime}>
+                                <Square className="size-4" />
+                                Detener y guardar
+                              </Button>
+                            ) : (
+                              <Button variant="secondary" size="sm" onClick={handleStartTimer} disabled={!canEdit || isLoggingTime}>
+                                <Play className="size-4" />
+                                Iniciar timer
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Registro manual */}
+                        {canEdit ? (
+                          <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                            <h4 className="mb-3 font-semibold">Registrar manualmente</h4>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <Input
+                                type="number"
+                                min={1}
+                                max={1440}
+                                placeholder="Minutos (ej: 90)"
+                                value={manualMinutes}
+                                onChange={(e) => setManualMinutes(e.target.value)}
+                                className="sm:w-36"
+                              />
+                              <Input
+                                placeholder="Nota opcional"
+                                value={manualNote}
+                                onChange={(e) => setManualNote(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleLogManualTime(); } }}
+                              />
+                              <Button type="button" onClick={handleLogManualTime} disabled={isLoggingTime || !manualMinutes}>
+                                {isLoggingTime
+                                  ? <LoaderCircle className="size-4 animate-spin" />
+                                  : <Clock className="size-4" />}
+                                Registrar
+                              </Button>
+                            </div>
+                            {manualMinutes && !isNaN(parseInt(manualMinutes)) && parseInt(manualMinutes) > 0 && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                = {formatMinutes(parseInt(manualMinutes))}
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {/* Log de entradas */}
+                        <div className="rounded-[28px] border border-border bg-background/60 p-4">
+                          <h4 className="mb-3 font-semibold">
+                            Entradas registradas
+                            {detail.timeEntries.length > 0 && (
+                              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                                ({detail.timeEntries.length})
+                              </span>
+                            )}
+                          </h4>
+                          {detail.timeEntries.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              Todavía no hay tiempo registrado en esta tarjeta.
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {detail.timeEntries.map((entry) => (
+                                <div
+                                  key={entry.id}
+                                  className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-3 py-2.5 text-sm"
+                                >
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <UserAvatar name={entry.user.name} src={entry.user.avatarUrl} className="size-7 shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="font-medium tabular-nums">{formatMinutes(entry.minutes)}</p>
+                                      {entry.note && (
+                                        <p className="truncate text-xs text-muted-foreground">{entry.note}</p>
+                                      )}
+                                      <p className="text-xs text-muted-foreground">
+                                        {entry.user.name} · {formatRelativeDistance(entry.createdAt)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteTimeEntry(entry.id)}
+                                      className="shrink-0 rounded-lg p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                      <X className="size-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </TabsContent>
 
                 </ScrollArea>

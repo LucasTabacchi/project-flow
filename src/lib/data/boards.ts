@@ -93,6 +93,120 @@ function serializeCardDependency(input: {
   };
 }
 
+function serializeCardComment(comment: {
+  id: string;
+  body: string;
+  createdAt: Date;
+  author: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string | null;
+  };
+  reactions?: Array<{
+    emoji: string;
+    userId: string;
+    user: {
+      name: string;
+    };
+  }>;
+}): CardDetailView["comments"][number] {
+  const reactionMap = new Map<
+    string,
+    { count: number; userNames: string[]; userIds: string[] }
+  >();
+
+  for (const reaction of comment.reactions ?? []) {
+    const entry = reactionMap.get(reaction.emoji) ?? {
+      count: 0,
+      userNames: [],
+      userIds: [],
+    };
+    entry.count += 1;
+    entry.userNames.push(reaction.user.name);
+    entry.userIds.push(reaction.userId);
+    reactionMap.set(reaction.emoji, entry);
+  }
+
+  return {
+    id: comment.id,
+    body: comment.body,
+    createdAt: comment.createdAt.toISOString(),
+    author: serializeUser(comment.author),
+    reactions: [...reactionMap.entries()].map(([emoji, data]) => ({
+      emoji,
+      count: data.count,
+      reactedByMe: false,
+      userNames: data.userNames,
+    })),
+  };
+}
+
+function serializeChecklist(checklist: {
+  id: string;
+  title: string;
+  position: number;
+  items: Array<{
+    id: string;
+    title: string;
+    position: number;
+    isCompleted: boolean;
+    completedAt: Date | null;
+  }>;
+}): CardDetailView["checklists"][number] {
+  return {
+    id: checklist.id,
+    title: checklist.title,
+    position: checklist.position,
+    items: checklist.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      position: item.position,
+      isCompleted: item.isCompleted,
+      completedAt: item.completedAt?.toISOString() ?? null,
+    })),
+  };
+}
+
+function serializeAttachment(attachment: {
+  id: string;
+  name: string;
+  url: string;
+  size: number | null;
+  mimeType: string | null;
+  createdAt: Date;
+}): CardDetailView["attachments"][number] {
+  return {
+    id: attachment.id,
+    name: attachment.name,
+    url: attachment.url,
+    size: attachment.size,
+    mimeType: attachment.mimeType,
+    createdAt: attachment.createdAt.toISOString(),
+  };
+}
+
+function serializeTimeEntry(entry: {
+  id: string;
+  minutes: number | null;
+  note: string | null;
+  createdAt: Date;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string | null;
+  };
+}): CardDetailView["timeEntries"][number] {
+  return {
+    id: entry.id,
+    minutes: entry.minutes ?? 0,
+    note: entry.note,
+    createdAt: entry.createdAt.toISOString(),
+    user: serializeUser(entry.user),
+  };
+}
+
 function normalizeBoardSnapshot(board: BoardPageData): BoardPageData {
   return {
     ...board,
@@ -697,6 +811,30 @@ export async function getCardDetail(
   cardId: string,
   userId: string,
 ): Promise<CardDetailView | null> {
+  const [overview, activityData, checklistData, timeData] = await Promise.all([
+    getCardOverview(boardId, cardId, userId),
+    getCardActivityData(boardId, cardId, userId),
+    getCardChecklistData(boardId, cardId, userId),
+    getCardTimeData(boardId, cardId, userId),
+  ]);
+
+  if (!overview || !activityData || !checklistData || !timeData) {
+    return null;
+  }
+
+  return {
+    ...overview,
+    ...activityData,
+    ...checklistData,
+    ...timeData,
+  };
+}
+
+export async function getCardOverview(
+  boardId: string,
+  cardId: string,
+  userId: string,
+): Promise<CardDetailView | null> {
   const card = await prisma.card.findFirst({
     where: {
       id: cardId,
@@ -739,40 +877,6 @@ export async function getCardDetail(
       cardLabels: {
         include: {
           label: true,
-        },
-      },
-      comments: {
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          author: {
-            select: userSummarySelect,
-          },
-          reactions: {
-            select: {
-              emoji: true,
-              userId: true,
-              user: { select: { name: true } },
-            },
-          },
-        },
-      },
-      checklists: {
-        orderBy: {
-          position: "asc",
-        },
-        include: {
-          items: {
-            orderBy: {
-              position: "asc",
-            },
-          },
-        },
-      },
-      attachments: {
-        orderBy: {
-          createdAt: "desc",
         },
       },
       blocking: {
@@ -819,14 +923,6 @@ export async function getCardDetail(
           },
         },
       },
-      // ── Ronda 1: time entries ──────────────────────────────────────────────
-      timeEntries: {
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        include: {
-          user: { select: userSummarySelect },
-        },
-      },
       customFieldValues: {
         select: {
           fieldId: true,
@@ -844,7 +940,6 @@ export async function getCardDetail(
           },
         },
       },
-      // ───────────────────────────────────────────────────────────────────────
     },
   });
 
@@ -870,49 +965,9 @@ export async function getCardDetail(
     createdBy: serializeUser(card.createdBy),
     labels: serializeLabels(card.cardLabels),
     assignees: card.assignments.map(({ user }) => serializeUser(user)),
-    comments: card.comments.map((comment) => {
-      // Group reactions by emoji
-      const reactionMap = new Map<string, { count: number; userNames: string[]; userIds: string[] }>();
-      for (const r of comment.reactions ?? []) {
-        const entry = reactionMap.get(r.emoji) ?? { count: 0, userNames: [], userIds: [] };
-        entry.count++;
-        entry.userNames.push(r.user.name);
-        entry.userIds.push(r.userId);
-        reactionMap.set(r.emoji, entry);
-      }
-      return {
-        id: comment.id,
-        body: comment.body,
-        createdAt: comment.createdAt.toISOString(),
-        author: serializeUser(comment.author),
-        reactions: [...reactionMap.entries()].map(([emoji, data]) => ({
-          emoji,
-          count: data.count,
-          reactedByMe: false, // populated client-side via getCommentReactions or passed userId
-          userNames: data.userNames,
-        })),
-      };
-    }),
-    checklists: card.checklists.map((checklist) => ({
-      id: checklist.id,
-      title: checklist.title,
-      position: checklist.position,
-      items: checklist.items.map((item) => ({
-        id: item.id,
-        title: item.title,
-        position: item.position,
-        isCompleted: item.isCompleted,
-        completedAt: item.completedAt?.toISOString() ?? null,
-      })),
-    })),
-    attachments: card.attachments.map((attachment) => ({
-      id: attachment.id,
-      name: attachment.name,
-      url: attachment.url,
-      size: attachment.size,
-      mimeType: attachment.mimeType,
-      createdAt: attachment.createdAt.toISOString(),
-    })),
+    comments: [],
+    checklists: [],
+    attachments: [],
     blocking: card.blocking.map((dependency) =>
       serializeCardDependency({
         dependencyId: dependency.id,
@@ -925,16 +980,9 @@ export async function getCardDetail(
         card: dependency.blockerCard,
       }),
     ),
-    // ── Ronda 1 ────────────────────────────────────────────────────────────
     estimatedMinutes: card.estimatedMinutes,
     trackedMinutes: card.trackedMinutes,
-    timeEntries: card.timeEntries.map((entry) => ({
-      id: entry.id,
-      minutes: entry.minutes ?? 0,
-      note: entry.note,
-      createdAt: entry.createdAt.toISOString(),
-      user: serializeUser(entry.user),
-    })),
+    timeEntries: [],
     customFields: card.board.customFields.map((field) => {
       const value = customFieldValuesByFieldId.get(field.id);
 
@@ -945,6 +993,141 @@ export async function getCardDetail(
         optionValue: value?.optionValue ?? null,
       });
     }),
-    // ───────────────────────────────────────────────────────────────────────
+  };
+}
+
+export async function getCardActivityData(
+  boardId: string,
+  cardId: string,
+  userId: string,
+): Promise<Pick<CardDetailView, "comments" | "attachments"> | null> {
+  const card = await prisma.card.findFirst({
+    where: {
+      id: cardId,
+      boardId,
+      board: {
+        members: {
+          some: {
+            userId,
+          },
+        },
+      },
+    },
+    select: {
+      comments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          author: {
+            select: userSummarySelect,
+          },
+          reactions: {
+            select: {
+              emoji: true,
+              userId: true,
+              user: { select: { name: true } },
+            },
+          },
+        },
+      },
+      attachments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+  });
+
+  if (!card) {
+    return null;
+  }
+
+  return {
+    comments: card.comments.map((comment) => serializeCardComment(comment)),
+    attachments: card.attachments.map((attachment) => serializeAttachment(attachment)),
+  };
+}
+
+export async function getCardChecklistData(
+  boardId: string,
+  cardId: string,
+  userId: string,
+): Promise<Pick<CardDetailView, "checklists"> | null> {
+  const card = await prisma.card.findFirst({
+    where: {
+      id: cardId,
+      boardId,
+      board: {
+        members: {
+          some: {
+            userId,
+          },
+        },
+      },
+    },
+    select: {
+      checklists: {
+        orderBy: {
+          position: "asc",
+        },
+        include: {
+          items: {
+            orderBy: {
+              position: "asc",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!card) {
+    return null;
+  }
+
+  return {
+    checklists: card.checklists.map((checklist) => serializeChecklist(checklist)),
+  };
+}
+
+export async function getCardTimeData(
+  boardId: string,
+  cardId: string,
+  userId: string,
+): Promise<Pick<CardDetailView, "timeEntries"> | null> {
+  const card = await prisma.card.findFirst({
+    where: {
+      id: cardId,
+      boardId,
+      board: {
+        members: {
+          some: {
+            userId,
+          },
+        },
+      },
+    },
+    select: {
+      timeEntries: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 50,
+        include: {
+          user: {
+            select: userSummarySelect,
+          },
+        },
+      },
+    },
+  });
+
+  if (!card) {
+    return null;
+  }
+
+  return {
+    timeEntries: card.timeEntries.map((entry) => serializeTimeEntry(entry)),
   };
 }

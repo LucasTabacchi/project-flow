@@ -13,7 +13,11 @@ import { touchBoard, touchCard } from "@/lib/board-realtime";
 import {
   getBoardCardSummary,
   getBoardMembership,
+  getCardActivityData,
+  getCardChecklistData,
   getCardDetail,
+  getCardOverview,
+  getCardTimeData,
 } from "@/lib/data/boards";
 import { prisma } from "@/lib/db";
 import { runBoardStatusAutomations } from "@/lib/board-automations";
@@ -308,6 +312,62 @@ export async function getCardDetailAction(
 
   if (!detail) {
     return failure("No pudimos cargar la tarjeta.");
+  }
+
+  return success(detail);
+}
+
+export async function getCardOverviewAction(
+  boardId: string,
+  cardId: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof getCardOverview>>>> {
+  const user = await requireUser();
+  const detail = await getCardOverview(boardId, cardId, user.id);
+
+  if (!detail) {
+    return failure("No pudimos cargar la tarjeta.");
+  }
+
+  return success(detail);
+}
+
+export async function getCardActivityAction(
+  boardId: string,
+  cardId: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof getCardActivityData>>>> {
+  const user = await requireUser();
+  const detail = await getCardActivityData(boardId, cardId, user.id);
+
+  if (!detail) {
+    return failure("No pudimos cargar la actividad de la tarjeta.");
+  }
+
+  return success(detail);
+}
+
+export async function getCardChecklistsAction(
+  boardId: string,
+  cardId: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof getCardChecklistData>>>> {
+  const user = await requireUser();
+  const detail = await getCardChecklistData(boardId, cardId, user.id);
+
+  if (!detail) {
+    return failure("No pudimos cargar los checklist de la tarjeta.");
+  }
+
+  return success(detail);
+}
+
+export async function getCardTimeEntriesAction(
+  boardId: string,
+  cardId: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof getCardTimeData>>>> {
+  const user = await requireUser();
+  const detail = await getCardTimeData(boardId, cardId, user.id);
+
+  if (!detail) {
+    return failure("No pudimos cargar el tiempo de la tarjeta.");
   }
 
   return success(detail);
